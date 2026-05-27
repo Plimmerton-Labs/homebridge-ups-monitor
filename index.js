@@ -20,6 +20,11 @@
 
 const { queryNUT }        = require('./lib/nutClient');
 const { parseStatusFlags } = require('./lib/nutParser');
+const RingBuffer           = require('./lib/ringBuffer');
+
+const fs   = require('fs');
+const path = require('path');
+const os   = require('os');
 
 // ── Tile modules — one service per file ──────────────────────────────────────
 const setupBatteryTile      = require('./lib/tiles/batteryTile');
@@ -63,6 +68,14 @@ class NUTDashboardPlatform {
     // Low battery threshold
     this.lowBatThreshold = config.lowBatteryThreshold || 20;
 
+    // Storage path for ring-buffer history files
+    // Resolved the same way as server.js so both processes share the same files
+    this.storagePath = process.env.UIX_STORAGE_PATH
+      || path.join(os.homedir(), '.homebridge');
+
+    // Map of upsName → RingBuffer instance (one file per UPS)
+    this.ringBuffers = new Map();
+
     this.log.info(
       `NUT UPS Monitor starting — server: ${this.host}:${this.port}, ` +
       `UPS: [${this.upsList.join(', ')}]`
@@ -102,6 +115,11 @@ class NUTDashboardPlatform {
       .setCharacteristic(Characteristic.Model,         'UPS Monitor')
       .setCharacteristic(Characteristic.SerialNumber,  upsName);
 
+    // Ring buffer for this UPS (1440 points = 1 per minute for 24 h)
+    const histFile = path.join(this.storagePath, `ups-history-${upsName}.json`);
+    const ringBuf  = new RingBuffer(histFile, 1440);
+    this.ringBuffers.set(upsName, ringBuf);
+
     // Initialise all tiles — each returns an update() function
     const tiles = [
       setupBatteryTile(accessory, this.api, upsName, { lowBatThreshold: this.lowBatThreshold }),
@@ -120,6 +138,16 @@ class NUTDashboardPlatform {
 
         // Push fresh data into every tile
         tiles.forEach(tile => tile.update(data, flags));
+
+        // Append telemetry point to the persistent ring buffer
+        ringBuf.push({
+          t:       new Date().toISOString(),
+          inV:     data['input.voltage']   ?? null,
+          outV:    data['output.voltage']  ?? null,
+          bat:     data['battery.charge']  ?? null,
+          load:    data['ups.load']        ?? null,
+          runtime: data['battery.runtime'] ?? null,
+        });
 
         this.log.debug(
           `[${upsName}] ${flags.raw} | ` +
