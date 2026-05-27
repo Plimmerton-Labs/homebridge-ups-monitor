@@ -155,20 +155,28 @@ describe('queryNUT — error handling', () => {
   });
 
   test('rejects with timeout when server accepts but never responds', async () => {
-    // Create a server that accepts connections silently
+    // Track server-side sockets so we can destroy them in cleanup.
+    // server.close() only fires its callback once ALL connections have ended —
+    // if we don't destroy them explicitly it hangs forever.
+    const serverSockets = new Set();
     const silentServer = await new Promise(resolve => {
-      const s = net.createServer(() => { /* intentionally do nothing */ });
+      const s = net.createServer(socket => {
+        serverSockets.add(socket);
+        socket.on('close', () => serverSockets.delete(socket));
+        // intentionally never send any data
+      });
       s.listen(0, '127.0.0.1', () => resolve(s));
     });
     const silentPort = silentServer.address().port;
 
     try {
       await expect(
-        // Use a short 500 ms timeout so the test doesn't take 8 seconds
+        // 500 ms timeout — much shorter than the Jest test limit
         queryNUT('127.0.0.1', silentPort, 'ups', null, null, ['ups.status'], 500)
       ).rejects.toThrow(/timed out/i);
     } finally {
-      silentServer.close();
+      serverSockets.forEach(s => s.destroy());
+      await new Promise(resolve => silentServer.close(resolve));
     }
-  }, 5000); // Jest timeout for this individual test
+  }, 3000); // Jest timeout for this individual test
 });
