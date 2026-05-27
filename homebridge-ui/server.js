@@ -12,6 +12,9 @@
 
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
 const { queryNUT } = require('../lib/nutClient');
+const fs   = require('fs');
+const path = require('path');
+const os   = require('os');
 
 // ─── UI Server ────────────────────────────────────────────────────────────────
 class NUTUiServer extends HomebridgePluginUiServer {
@@ -23,9 +26,13 @@ class NUTUiServer extends HomebridgePluginUiServer {
 
   async handleUpsStatus() {
     try {
-      // Read live config from Homebridge so we always use current settings
-      const allConfigs = await this.getPluginConfig();
-      const cfg = allConfigs.find(c => c.platform === 'NUTDashboard') || {};
+      // Read config directly from config.json — compatible with all UI utils versions
+      const storagePath = this.homebridgeStoragePath
+        || process.env.UIX_STORAGE_PATH
+        || path.join(os.homedir(), '.homebridge');
+      const raw = fs.readFileSync(path.join(storagePath, 'config.json'), 'utf8');
+      const homebridgeConfig = JSON.parse(raw);
+      const cfg = (homebridgeConfig.platforms || []).find(p => p.platform === 'NUTDashboard') || {};
 
       const host     = cfg.host     || '127.0.0.1';
       const port     = cfg.port     || 3493;
