@@ -26,9 +26,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: develop
-          # Use a PAT if you have branch protection; GITHUB_TOKEN works for
-          # unprotected branches.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT_VERSION_BUMP is a fine-grained PAT with Contents:Write on this
+          # repo. It is owned by a repo admin so it bypasses branch rulesets.
+          # Falls back to GITHUB_TOKEN if the secret is not set (unprotected repos).
+          token: ${{ secrets.PAT_VERSION_BUMP || secrets.GITHUB_TOKEN }}
 
       - name: Configure git
         run: |
