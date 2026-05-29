@@ -4,6 +4,27 @@ This file is the authoritative guide for AI agents (GitHub Copilot, Claude, etc.
 
 ---
 
+## Session Setup (run at the start of every session)
+
+The sandbox has no GitHub credentials by default. A fine-grained PAT scoped to this repo is stored in `.git/config` (never committed). Run these two commands before any `git push`:
+
+```bash
+TOKEN=$(git config --local cowork.token)
+git remote set-url origin https://oauth2:${TOKEN}@github.com/GodIsI/homebridge-ups-monitor.git
+```
+
+Verify it works with `git ls-remote --heads origin`. If `cowork.token` is missing, ask the user to re-add it:
+```bash
+git config --local cowork.token "ghp_..."
+```
+
+**Token permissions** (fine-grained, repo-scoped only):
+- Contents, Actions, Issues, Pull requests, Workflows — Read and write
+- Metadata — Read-only (required)
+- Branch protection on `develop` and `main` still fully enforced — this token has no bypass actor status
+
+---
+
 ## Branch Strategy
 
 | Branch | Purpose |
