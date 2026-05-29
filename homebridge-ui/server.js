@@ -6,8 +6,12 @@
  * Runs server-side inside the Homebridge UI process.
  * Handles HTTP requests from the dashboard UI (index.html) via homebridge.request().
  *
- * Endpoint:
- *   POST /ups-status   → queries NUT and returns JSON for all configured UPS units
+ * Endpoints:
+ *   POST /ups-status        → queries NUT and returns JSON for all configured UPS units
+ *   POST /history           → returns 24h ring-buffer points as JSON
+ *   POST /export            → returns 24h ring-buffer as a CSV string for download
+ *   POST /logs              → lists available 30-day daily log files for a UPS
+ *   POST /logs/download     → returns the contents of one daily log file as CSV
  */
 
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
@@ -21,8 +25,11 @@ const os   = require('os');
 class NUTUiServer extends HomebridgePluginUiServer {
   constructor() {
     super();
-    this.onRequest('/ups-status', this.handleUpsStatus.bind(this));
-    this.onRequest('/history',    this.handleHistory.bind(this));
+    this.onRequest('/ups-status',     this.handleUpsStatus.bind(this));
+    this.onRequest('/history',         this.handleHistory.bind(this));
+    this.onRequest('/export',          this.handleExport.bind(this));
+    this.onRequest('/logs',            this.handleLogs.bind(this));
+    this.onRequest('/logs/download',   this.handleLogsDownload.bind(this));
     this.ready();
   }
 
@@ -100,6 +107,148 @@ class NUTUiServer extends HomebridgePluginUiServer {
         upsName,
         points: buf.read(),
       };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+  // ── Shared helper ─────────────────────────────────────────────────────────
+
+  /**
+   * Resolve storagePath and upsName from body, falling back to config.
+   * Returns { storagePath, upsName }.
+   */
+  _resolveContext(body = {}) {
+    const storagePath = this.homebridgeStoragePath
+      || process.env.UIX_STORAGE_PATH
+      || path.join(os.homedir(), '.homebridge');
+
+    let upsName = body.upsName;
+    if (!upsName) {
+      const raw     = fs.readFileSync(path.join(storagePath, 'config.json'), 'utf8');
+      const cfg     = (JSON.parse(raw).platforms || []).find(p => p.platform === 'NUTDashboard') || {};
+      const upsList = Array.isArray(cfg.ups) ? cfg.ups : [cfg.ups || 'ups'];
+      upsName = upsList[0];
+    }
+
+    return { storagePath, upsName };
+  }
+
+  /**
+   * POST /export
+   * Body: { upsName?: string }
+   *
+   * Returns the 24h ring-buffer as a CSV string so the dashboard can
+   * trigger a browser download.
+   *
+   * Response:
+   *   { success: true,  upsName, filename, csv }
+   *   { success: false, error }
+   *
+   * CSV columns: timestamp, input_voltage, output_voltage, battery_pct, load_pct, runtime_min
+   */
+  async handleExport(body = {}) {
+    try {
+      const { storagePath, upsName } = this._resolveContext(body);
+
+      const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
+      const buf      = new RingBuffer(histFile, 1440);
+      const points   = buf.read();
+
+      const header = 'timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min\n';
+      const rows   = points.map(p => [
+        p.t       ?? '',
+        p.inV     ?? '',
+        p.outV    ?? '',
+        p.bat     ?? '',
+        p.load    ?? '',
+        p.runtime != null ? (p.runtime / 60).toFixed(2) : '',
+      ].join(',')).join('\n');
+
+      const date     = new Date().toISOString().slice(0, 10);
+      const filename = `ups-${upsName}-${date}.csv`;
+
+      return {
+        success:  true,
+        upsName,
+        filename,
+        csv: header + rows,
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /logs
+   * Body: { upsName?: string }
+   *
+   * Lists the available 30-day daily log files for the given UPS,
+   * newest first.
+   *
+   * Response:
+   *   { success: true, upsName, files: [{ filename, date, sizeBytes }] }
+   *   { success: false, error }
+   */
+  async handleLogs(body = {}) {
+    try {
+      const { storagePath, upsName } = this._resolveContext(body);
+
+      const prefix = `ups-log-${upsName}-`;
+      let files = [];
+
+      try {
+        files = fs.readdirSync(storagePath)
+          .filter(f => f.startsWith(prefix) && f.endsWith('.csv'))
+          .map(filename => {
+            const date      = filename.slice(prefix.length, -4);
+            const filePath  = path.join(storagePath, filename);
+            const sizeBytes = fs.statSync(filePath).size;
+            return { filename, date, sizeBytes };
+          })
+          .sort((a, b) => b.date.localeCompare(a.date));  // newest first
+      } catch {
+        // storageDir doesn't exist yet — return empty list
+      }
+
+      return { success: true, upsName, files };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /logs/download
+   * Body: { upsName?: string, filename: string }
+   *
+   * Returns the raw CSV content of one daily log file.
+   * filename is validated to prevent directory traversal.
+   *
+   * Response:
+   *   { success: true, filename, csv }
+   *   { success: false, error }
+   */
+  async handleLogsDownload(body = {}) {
+    try {
+      const { storagePath, upsName } = this._resolveContext(body);
+
+      const filename = body.filename;
+      if (!filename) {
+        return { success: false, error: 'filename is required' };
+      }
+
+      // Safety: only allow the exact pattern we write, no path separators
+      const safe = /^ups-log-[a-zA-Z0-9_-]+-\d{4}-\d{2}-\d{2}\.csv$/.test(filename);
+      if (!safe) {
+        return { success: false, error: 'Invalid filename' };
+      }
+
+      const filePath = path.join(storagePath, filename);
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+      }
+
+      const csv = fs.readFileSync(filePath, 'utf8');
+      return { success: true, filename, csv };
     } catch (err) {
       return { success: false, error: err.message };
     }
