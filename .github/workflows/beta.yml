@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      pull-requests: write   # needed to post PR comment
 
     steps:
       - uses: actions/checkout@v6
@@ -51,44 +52,39 @@ jobs:
           prerelease: true
           make_latest: false
 
-      - name: Collect publish diagnostics
+      - name: Diagnose and publish
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p /tmp/npm-debug
+          # Capture all diagnostic info
+          {
+            echo "## npmrc state"
+            echo "NPM_CONFIG_USERCONFIG: ${NPM_CONFIG_USERCONFIG:-not set}"
+            echo "---project .npmrc---"
+            cat .npmrc 2>/dev/null || echo "(not found)"
+            echo "---userconfig file---"
+            cat "${NPM_CONFIG_USERCONFIG}" 2>/dev/null || echo "(not found)"
+            echo "---npm config ls---"
+            npm config ls 2>&1
+            echo "---NODE_AUTH_TOKEN length: ${#NODE_AUTH_TOKEN}---"
+            echo "---OIDC: ACTIONS_ID_TOKEN_REQUEST_URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+YES (${#ACTIONS_ID_TOKEN_REQUEST_URL} chars)}---"
+            echo "---npm version: $(npm --version)---"
+            echo ""
+            echo "## npm publish output"
+            npm publish --access public --tag beta --provenance 2>&1 || true
+          } > /tmp/diag.txt
 
-          echo "=== NPM_CONFIG_USERCONFIG ===" >> /tmp/npm-debug/config.txt
-          echo "${NPM_CONFIG_USERCONFIG:-not set}" >> /tmp/npm-debug/config.txt
+          cat /tmp/diag.txt
 
-          echo "=== Project .npmrc ===" >> /tmp/npm-debug/config.txt
-          cat .npmrc 2>/dev/null >> /tmp/npm-debug/config.txt || echo "(not found)" >> /tmp/npm-debug/config.txt
-
-          echo "=== NPM_CONFIG_USERCONFIG file ===" >> /tmp/npm-debug/config.txt
-          cat "${NPM_CONFIG_USERCONFIG}" 2>/dev/null >> /tmp/npm-debug/config.txt || echo "(not found)" >> /tmp/npm-debug/config.txt
-
-          echo "=== npm config ls ===" >> /tmp/npm-debug/config.txt
-          npm config ls 2>&1 >> /tmp/npm-debug/config.txt
-
-          echo "=== NODE_AUTH_TOKEN length ===" >> /tmp/npm-debug/config.txt
-          echo "${#NODE_AUTH_TOKEN}" >> /tmp/npm-debug/config.txt
-
-          echo "=== OIDC env ===" >> /tmp/npm-debug/config.txt
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:+SET (len=${#ACTIONS_ID_TOKEN_REQUEST_URL})}" >> /tmp/npm-debug/config.txt
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+SET}" >> /tmp/npm-debug/config.txt
-
-          echo "=== npm version ===" >> /tmp/npm-debug/config.txt
-          npm --version >> /tmp/npm-debug/config.txt
-
-          echo "=== npm publish output ===" >> /tmp/npm-debug/publish.txt
-          npm publish --access public --tag beta --provenance 2>&1 >> /tmp/npm-debug/publish.txt || true
-
-          cat /tmp/npm-debug/config.txt
-          echo "---"
-          cat /tmp/npm-debug/publish.txt
-
-      - name: Upload diagnostics artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-oidc-debug
-          path: /tmp/npm-debug/
-          retention-days: 1
+          # Post as PR comment
+          BODY=$(python3 -c "
+import json, sys
+txt = open('/tmp/diag.txt').read()[:4000]
+print(json.dumps({'body': '\`\`\`\n' + txt + '\n\`\`\`'}))
+")
+          curl -s -X POST \
+            -H "Authorization: token ${GH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/GodIsI/homebridge-ups-monitor/issues/46/comments" \
+            -d "$BODY" > /dev/null
