@@ -58,7 +58,7 @@ jobs:
 
       - name: Open version-bump PR
         id: cpr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.PAT_VERSION_BUMP }}
           commit-message: "chore: bump version to ${{ steps.bump.outputs.new_version }}"
