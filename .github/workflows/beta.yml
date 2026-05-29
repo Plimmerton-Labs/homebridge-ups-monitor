@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - agent/debug-oidc-publish   # temp: direct branch trigger for OIDC diagnosis
+      - agent/debug-oidc-publish
 
 jobs:
   beta:
@@ -16,7 +16,7 @@ jobs:
 
     permissions:
       contents: write
-      id-token: write   # Required for npm OIDC Trusted Publishing
+      id-token: write
 
     steps:
       - uses: actions/checkout@v6
@@ -27,76 +27,70 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
-      - name: Debug — all npmrc locations and OIDC env
+      - name: Capture npm config to job summary
         run: |
-          echo "====== NPM_CONFIG_USERCONFIG ======"
-          echo "${NPM_CONFIG_USERCONFIG:-not set}"
+          {
+            echo "## npm config debug"
+            echo "### NPM_CONFIG_USERCONFIG"
+            echo '```'
+            echo "${NPM_CONFIG_USERCONFIG:-not set}"
+            echo '```'
 
-          echo "====== Project .npmrc (pwd=$(pwd)) ======"
-          cat .npmrc 2>/dev/null || echo "(not found)"
+            echo "### Project .npmrc"
+            echo '```'
+            cat .npmrc 2>/dev/null || echo "(not found)"
+            echo '```'
 
-          echo "====== NPM_CONFIG_USERCONFIG file ======"
-          cat "${NPM_CONFIG_USERCONFIG}" 2>/dev/null || echo "(file not found at NPM_CONFIG_USERCONFIG)"
+            echo "### NPM_CONFIG_USERCONFIG file"
+            echo '```'
+            cat "${NPM_CONFIG_USERCONFIG}" 2>/dev/null || echo "(not found)"
+            echo '```'
 
-          echo "====== ~/.npmrc ======"
-          cat ~/.npmrc 2>/dev/null || echo "(not found)"
+            echo "### ~/.npmrc"
+            echo '```'
+            cat ~/.npmrc 2>/dev/null || echo "(not found)"
+            echo '```'
 
-          echo "====== npm config get userconfig ======"
-          npm config get userconfig
+            echo "### npm config ls (auth)"
+            echo '```'
+            npm config ls -l 2>/dev/null | grep -i "authToken\|token\|_auth\|registry" | head -20 || echo "(none)"
+            echo '```'
 
-          echo "====== npm config ls (auth lines only) ======"
-          npm config ls -l 2>/dev/null | grep -i "authToken\|token\|_auth" || echo "(none)"
+            echo "### NODE_AUTH_TOKEN length"
+            echo "${#NODE_AUTH_TOKEN}"
 
-          echo "====== NODE_AUTH_TOKEN ======"
-          echo "Length: ${#NODE_AUTH_TOKEN}"
-
-          echo "====== OIDC env vars ======"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:+SET (${#ACTIONS_ID_TOKEN_REQUEST_URL} chars)}"
-          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+SET}"
-
-          echo "====== npm version ======"
-          npm --version
+            echo "### OIDC"
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL set: ${ACTIONS_ID_TOKEN_REQUEST_URL:+YES}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove ALL auth tokens for OIDC
         run: |
-          echo "--- Cleaning project .npmrc ---"
-          if [ -f .npmrc ]; then
-            echo "Before:"
-            cat .npmrc
-            sed -i '/authToken/d' .npmrc
-            echo "After:"
-            cat .npmrc
-          else
-            echo "(no project .npmrc)"
-          fi
+          # Clean project .npmrc
+          [ -f .npmrc ] && sed -i '/authToken/d' .npmrc || true
+          # Clean NPM_CONFIG_USERCONFIG
+          [ -n "$NPM_CONFIG_USERCONFIG" ] && sed -i '/authToken/d' "$NPM_CONFIG_USERCONFIG" || true
+          # Clean ~/.npmrc
+          sed -i '/authToken/d' ~/.npmrc 2>/dev/null || true
+          # Belt-and-suspenders
+          npm config delete //registry.npmjs.org/:_authToken 2>/dev/null || true
 
-          echo "--- Cleaning NPM_CONFIG_USERCONFIG ---"
-          if [ -n "$NPM_CONFIG_USERCONFIG" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
-            echo "Before:"
-            cat "$NPM_CONFIG_USERCONFIG"
-            sed -i '/authToken/d' "$NPM_CONFIG_USERCONFIG"
-            echo "After:"
-            cat "$NPM_CONFIG_USERCONFIG"
-          else
-            echo "(NPM_CONFIG_USERCONFIG not set or file not found)"
-          fi
-
-          echo "--- Cleaning ~/.npmrc ---"
-          if [ -f ~/.npmrc ]; then
-            echo "Before:"
-            cat ~/.npmrc
-            sed -i '/authToken/d' ~/.npmrc
-            echo "After:"
-            cat ~/.npmrc
-          else
-            echo "(no ~/.npmrc)"
-          fi
-
-          echo "--- npm config delete (belt-and-suspenders) ---"
-          npm config delete //registry.npmjs.org/:_authToken 2>&1 || true
-
-          echo "--- Final check: npm config get authToken ---"
-          npm config get //registry.npmjs.org/:_authToken 2>&1 || echo "(key absent)"
+      - name: Capture post-cleanup state to summary
+        run: |
+          {
+            echo "## After cleanup"
+            echo "### Project .npmrc"
+            echo '```'
+            cat .npmrc 2>/dev/null || echo "(not found)"
+            echo '```'
+            echo "### NPM_CONFIG_USERCONFIG file"
+            echo '```'
+            cat "${NPM_CONFIG_USERCONFIG}" 2>/dev/null || echo "(not found)"
+            echo '```'
+            echo "### npm config get authToken"
+            echo '```'
+            npm config get //registry.npmjs.org/:_authToken 2>&1 || echo "(error)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install dependencies
         run: npm ci
@@ -122,5 +116,13 @@ jobs:
           prerelease: true
           make_latest: false
 
-      - name: Publish to npm with beta tag
-        run: npm publish --access public --tag beta --provenance
+      - name: Capture publish error to summary
+        if: always()
+        run: |
+          {
+            echo "## Publish attempt"
+            echo "### npm publish output"
+            echo '```'
+            npm publish --access public --tag beta --provenance 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
