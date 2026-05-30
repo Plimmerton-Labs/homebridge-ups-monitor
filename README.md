@@ -122,6 +122,23 @@ History is stored in the browser's local storage so it persists across page refr
 
 ---
 
+
+## HomeKit Tiles
+
+The plugin maps UPS metrics to HomeKit services. Because HomeKit's sensor types have fixed value ranges, some metrics use non-obvious service types — the table below explains the reasoning.
+
+| What you see in Home | HomeKit Service | NUT Variable | Notes |
+|---|---|---|---|
+| **On Battery** | `OccupancySensor` | `ups.status` | Occupancy Detected = on battery. Use this in automations to trigger alerts or shutdown scripts on power failure. |
+| **Battery Level** | `BatteryService` | `battery.charge` | Native battery % + Low Battery alert fires below your configured threshold |
+| **Load %** | `Lightbulb` (Brightness) | `ups.load` | 0–100 % maps naturally to brightness; bulb On = load > 0 |
+| **Input Voltage** | `LightSensor` | `input.voltage` | `CurrentAmbientLightLevel` spans 0.0001–100,000 lux — wide enough for any AC voltage (120 V or 230 V) without clipping. `CurrentTemperature` caps at 100 °C so would clip mains voltage. |
+| **Output Voltage** | `LightSensor` | `output.voltage` | Same reason as input voltage |
+| **Runtime Remaining** | `TemperatureSensor` | `battery.runtime ÷ 60` | Runtime reported in minutes (÷ 60). `CurrentTemperature` range 0–100 °C maps well to typical UPS runtimes of 0–100 min. Reported as a float, unlike humidity which is integer-only. |
+
+> **Why not use custom characteristics?** Custom characteristics appear in third-party apps (Eve, Controller for HomeKit) but are invisible in Apple's own Home app. Standard service types ensure every metric is visible and automatable in the native Home app without any workarounds.
+
+---
 ## Troubleshooting
 
 **Plugin loads but shows "Connection failed"**  
