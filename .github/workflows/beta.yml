@@ -19,15 +19,9 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20.x'
+          node-version: '22'   # OIDC Trusted Publishing requires Node 22.14+ / npm 11.5.1+
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
-
-      - name: Remove setup-node auth token (let OIDC handle auth)
-        # setup-node writes _authToken=${NODE_AUTH_TOKEN} to .npmrc.
-        # With no NODE_AUTH_TOKEN set, npm gets an empty token and fails
-        # before OIDC via --provenance can take over. Delete the line first.
-        run: npm config delete //registry.npmjs.org/:_authToken
 
       - name: Install dependencies
         run: npm ci
@@ -53,7 +47,8 @@ jobs:
           make_latest: false
 
       - name: Publish to npm with beta tag
-        # npm OIDC Trusted Publishing — no NPM_TOKEN required.
-        # Trusted Publisher: npmjs.com/package/homebridge-ups-monitor → Settings
-        # GitHub owner: GodIsI, repo: homebridge-ups-monitor, workflow: beta.yml
-        run: npm publish --access public --tag beta --provenance
+        # npm OIDC Trusted Publishing — no token needed.
+        # Requires Node 22.14+ (npm 11.5.1+). --provenance is automatic.
+        # Trusted Publisher: npmjs.com → homebridge-ups-monitor → Settings
+        #   GitHub owner: GodIsI  repo: homebridge-ups-monitor  workflow: beta.yml
+        run: npm publish --access public --tag beta
