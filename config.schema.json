@@ -1,7 +1,7 @@
 {
   "pluginAlias": "NUTDashboard",
   "pluginType": "platform",
-  "singular": false,
+  "singular": true,
   "customUi": true,
   "schema": {
     "type": "object",
@@ -40,7 +40,9 @@
         "items": {
           "type": "string"
         },
-        "default": ["ups"],
+        "default": [
+          "ups"
+        ],
         "description": "One or more UPS names as reported by 'upsc -l'. Typically just ['ups']."
       },
       "pollInterval": {
@@ -68,22 +70,35 @@
     }
   },
   "layout": [
-    { "key": "name" },
+    {
+      "key": "name"
+    },
     {
       "type": "fieldset",
       "title": "NUT Connection",
-      "items": ["host", "port", "username", "password"]
+      "items": [
+        "host",
+        "port",
+        "username",
+        "password"
+      ]
     },
     {
       "type": "fieldset",
       "title": "UPS Settings",
-      "items": ["ups", "pollInterval", "lowBatteryThreshold"]
+      "items": [
+        "ups",
+        "pollInterval",
+        "lowBatteryThreshold"
+      ]
     },
     {
       "type": "fieldset",
       "title": "Standalone Dashboard",
       "description": "Host the dashboard as a local website accessible from any browser on your network.",
-      "items": ["standalonePort"]
+      "items": [
+        "standalonePort"
+      ]
     }
   ]
 }
