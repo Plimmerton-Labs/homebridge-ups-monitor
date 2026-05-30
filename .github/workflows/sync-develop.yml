@@ -1,14 +1,13 @@
 name: Sync Main to Develop
 
-# Runs after a chore/version-bump-* PR is merged into main (i.e., after
-# version-minor.yml's auto-merge PR lands).
+# Runs after a chore/version-bump-* PR is merged into main.
+# Checks out develop, creates a sync branch, cherry-picks the version
+# files from main, then opens an auto-merge PR to develop.
 #
-# Opens an auto-merge PR from a chore/sync-main-X.Y.0 branch into develop,
-# carrying the new MINOR version number back so the next patch cycle starts
-# from the correct baseline (e.g. 1.1.0 → 1.1.1, not 1.0.4).
-#
-# The sync PR merge does NOT trigger version-patch.yml because its head
-# branch starts with 'chore/sync-main', which is excluded in that workflow.
+# Fixed: the old create-pull-request approach made no local changes
+# (the workflow checked out main but didn't edit anything), so it
+# silently no-op'd. Now we explicitly checkout develop, apply main's
+# package.json/lock, commit, push, then open the PR via gh CLI.
 
 on:
   pull_request:
@@ -29,44 +28,62 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout main
+      - name: Checkout develop
         uses: actions/checkout@v6
         with:
-          ref: main
+          ref: develop
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_VERSION_BUMP }}
 
       - name: Configure git
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Read new version
+      - name: Fetch main and read version
         id: version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          git fetch origin main
+          VERSION=$(git show origin/main:package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Create sync branch and apply version from main
+        id: branch
+        run: |
+          SYNC_BRANCH="chore/sync-main-${{ steps.version.outputs.version }}"
+          git checkout -b "$SYNC_BRANCH"
+
+          # Apply package.json and package-lock.json from main
+          git checkout origin/main -- package.json package-lock.json
+
+          if git diff --staged --quiet; then
+            echo "Nothing to sync — develop already at ${{ steps.version.outputs.version }}"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "chore: sync version ${{ steps.version.outputs.version }} from main"
+            git push origin "$SYNC_BRANCH"
+            echo "name=$SYNC_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Open sync PR to develop
-        id: cpr
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.PAT_VERSION_BUMP }}
-          commit-message: "chore: sync version ${{ steps.version.outputs.version }} from main"
-          branch: chore/sync-main-${{ steps.version.outputs.version }}
-          base: develop
-          title: "chore: sync version ${{ steps.version.outputs.version }} from main"
-          body: |
-            Automated sync of version ${{ steps.version.outputs.version }} from main back to develop.
-
-            This PR will auto-merge once CI passes.
-
-      - name: Enable auto-merge
-        if: steps.cpr.outputs.pull-request-number
+        if: steps.branch.outputs.created == 'true'
+        id: pr
         env:
-          # Must use PAT, not GITHUB_TOKEN — merges via GITHUB_TOKEN do not
-          # trigger downstream push-event workflows (e.g. beta.yml).
           GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} \
+          PR_URL=$(gh pr create \
+            --base develop \
+            --head "${{ steps.branch.outputs.name }}" \
+            --title "chore: sync version ${{ steps.version.outputs.version }} from main" \
+            --body "Automated sync of version ${{ steps.version.outputs.version }} from main back to develop.")
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
+        run: |
+          gh pr merge "${{ steps.pr.outputs.number }}" \
             --auto --squash --repo ${{ github.repository }}
