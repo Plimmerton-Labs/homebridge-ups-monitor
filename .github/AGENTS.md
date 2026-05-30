@@ -192,13 +192,13 @@ Because GitHub Rulesets on personal repositories cannot add `github-actions[bot]
    - `version-patch.yml` runs, bumps PATCH (e.g. `1.0.2` → `1.0.3`)
    - Opens PR: `chore/version-bump-1.0.3` → `develop` with auto-merge enabled
    - CI passes → PR auto-merges; squash commit message: `chore: bump version to 1.0.3`
-   - That commit triggers `beta.yml`, which builds and tags a pre-release (`v1.0.3-beta.N`)
+   - That commit triggers `beta.yml` (GitHub pre-release artefact) and `publish.yml` (npm beta publish)
 
 2. **`develop` PR merged → `main`** (cutting a release)
    - `version-minor.yml` runs, bumps MINOR and resets PATCH (e.g. `1.0.3` → `1.1.0`)
    - Opens PR: `chore/version-bump-1.1.0` → `main` with auto-merge enabled
    - CI passes → PR auto-merges; squash commit message: `chore: bump version to 1.1.0`
-   - That commit triggers `release.yml`, which builds and tags a stable release (`v1.1.0`)
+   - That commit triggers `release.yml` (GitHub stable release artefact) and `publish.yml` (npm latest publish)
    - `sync-develop.yml` detects the version-bump PR merge and opens:
      PR `chore/sync-main-1.1.0` → `develop` with auto-merge, carrying `1.1.0` back
 
@@ -209,7 +209,10 @@ The `if:` condition on both `version-patch.yml` and `version-minor.yml` excludes
 ### Rules for agents
 
 - **Do not** touch `"version"` in `package.json`.
-- `beta.yml` and `release.yml` only fire on commits whose message starts with `chore: bump version` — do not use that prefix for anything else.
+- `beta.yml`, `release.yml`, and `publish.yml` only fire on commits whose message starts with `chore: bump version` — do not use that prefix for anything else.
+- **`publish.yml` is the single source of truth for npm publishing.** All changes to Node version, OIDC config, npm flags, or publish logic must be made in `publish.yml` only — never in `beta.yml` or `release.yml` (those handle GitHub release artefacts only).
+- npm OIDC Trusted Publishing requires **Node 24** (ships npm 11). Do not downgrade to Node 22 or 20 in `publish.yml` — OIDC will silently fail.
+- The npmjs.com Trusted Publisher is configured for workflow `publish.yml`. If you rename or split this workflow, the Trusted Publisher entry must be updated on npmjs.com.
 - If you need to reason about the current version, read it from `package.json`.
 
 ---
@@ -220,5 +223,6 @@ The `if:` condition on both `version-patch.yml` and `version-minor.yml` excludes
 - Do not modify `.github/workflows/` without a discussion comment in the PR.
 - Do not manually edit `"version"` in `package.json` — versioning is fully automated (see Versioning section above).
 - Do not add npm production dependencies without justification (plugin size matters).
+- Do not modify `.github/workflows/publish.yml` Node version or OIDC settings without understanding the npm Trusted Publishing requirements (Node 24 + npm 11 minimum).
 - Do not use `accessory.addService()` without first checking `accessory.getService()`.
 - Do not hardcode the Homebridge storage path — always use `this.homebridgeStoragePath || process.env.UIX_STORAGE_PATH || path.join(os.homedir(), '.homebridge')`.
