@@ -97,7 +97,21 @@ Add the platform to your Homebridge `config.json`, or use the **Settings** panel
 
 ## Dashboard
 
-The dashboard runs as a **standalone web server** — it is not embedded in the Homebridge UI. Set a port via `standalonePort` in your config (or the **Standalone Dashboard** section of the plugin settings), save, and restart Homebridge:
+Set a **Standalone Dashboard Port** in the plugin settings, save, and restart Homebridge. Then open the dashboard at `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value you set) — it works from any browser on your network. You'll see:
+
+- Status banner (Online / On Battery / Low Battery) with UPS model name
+- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
+- Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
+- Auto-refresh every 15 seconds with a countdown indicator
+
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
+
+---
+
+
+## Standalone Dashboard
+
+By default the dashboard is only accessible through the Homebridge UI. If you want to open it from a phone, tablet, or any browser on your local network **without needing Homebridge open**, enable the standalone server by setting `standalonePort` in your config:
 
 ```json
 "standalonePort": 4080
