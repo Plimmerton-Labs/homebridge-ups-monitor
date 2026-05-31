@@ -5,7 +5,7 @@
 [![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![CI](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml)
 
-A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **live dashboard** directly in the Homebridge UI.
+A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
 
 Built for Raspberry Pi setups running NUT alongside Homebridge — works great alongside solar/battery monitoring projects.
 
@@ -13,13 +13,13 @@ Built for Raspberry Pi setups running NUT alongside Homebridge — works great a
 
 ## Features
 
-- **Live dashboard** inside the Homebridge UI — input/output voltage, battery %, load %, runtime remaining, battery voltage, and history charts
+- **Standalone web dashboard** — input/output voltage, battery %, load %, runtime remaining, battery voltage, and history charts, served as a local website you can open from any browser on your network
 - **HomeKit Battery service** — battery level, charging state, and Low Battery alerts usable in automations
 - **HomeKit Outlet service** — shows whether the UPS is supplying power; load > 0 marks it as in use
 - Connects over the native **NUT TCP protocol** (port 3493) — no extra agents needed, just `upsd` running on your Pi
 - Supports **multiple UPS units** on the same NUT server
 - Configurable **poll interval** and **low battery threshold**
-- Auto-refresh dashboard with voltage and battery history sparklines
+- History charts with selectable **1h / 6h / 12h / 24h** ranges, backed by a persistent ~24h server-side ring buffer
 
 ---
 
@@ -97,15 +97,14 @@ Add the platform to your Homebridge `config.json`, or use the **Settings** panel
 
 ## Dashboard
 
-After installing, open the plugin's **Settings** page in the Homebridge UI and click the **Dashboard** tab. You'll see:
+Set a **Standalone Dashboard Port** in the plugin settings, save, and restart Homebridge. Then open the dashboard at `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value you set) — it works from any browser on your network. You'll see:
 
 - Status banner (Online / On Battery / Low Battery) with UPS model name
 - Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
-- Voltage history chart (last 20 readings)
-- Battery & load history chart
+- Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
 - Auto-refresh every 15 seconds with a countdown indicator
 
-History is stored in the browser's local storage so it persists across page refreshes.
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
 
 ---
 
@@ -118,7 +117,7 @@ By default the dashboard is only accessible through the Homebridge UI. If you wa
 "standalonePort": 4080
 ```
 
-Once Homebridge restarts, the dashboard is available at:
+Once Homebridge restarts, the dashboard is available from any device on your network — phone, tablet, or desktop:
 
 | URL | Use case |
 |-----|----------|
@@ -126,7 +125,14 @@ Once Homebridge restarts, the dashboard is available at:
 | `http://localhost:4080` | From the Pi itself |
 | `http://<pi-ip>:4080` | If mDNS isn't working — replace with your Pi's IP address |
 
-The standalone server serves the same live dashboard as the Homebridge UI panel — voltage charts, battery history, load, runtime — and updates every 15 seconds.
+You'll see:
+
+- Status banner (Online / On Battery / Low Battery) with UPS model name
+- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
+- Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
+- Auto-refresh every 15 seconds with a countdown indicator
+
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
 
 **To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
 

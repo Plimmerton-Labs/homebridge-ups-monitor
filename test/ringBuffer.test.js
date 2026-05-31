@@ -171,6 +171,19 @@ describe('RingBuffer — file persistence', () => {
     const buf2 = new RingBuffer(f, 10);
     expect(buf2.size).toBe(0);
   });
+
+  test('adopt mode: reader keeps history when capacity differs', () => {
+    const f = tmpFile();
+    const writer = new RingBuffer(f, 5);
+    writer.push(makePoint(0));
+    writer.push(makePoint(1));
+
+    // Reader requests a different capacity but adopts the file's instead
+    const reader = new RingBuffer(f, 10, { adopt: true });
+    expect(reader.size).toBe(2);
+    expect(reader.maxPoints).toBe(5);
+    expect(reader.read()).toHaveLength(2);
+  });
 });
 
 // ── Resilience ────────────────────────────────────────────────────────────────

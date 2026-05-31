@@ -14,6 +14,14 @@ jest.mock('../lib/nutClient', () => ({
   queryNUT: jest.fn(),
 }));
 
+// ── Mock DashboardServer so the standalone server never binds a real socket ────
+jest.mock('../lib/dashboardServer', () => {
+  return jest.fn().mockImplementation(() => ({
+    start: jest.fn().mockResolvedValue(0),
+    stop:  jest.fn().mockResolvedValue(),
+  }));
+});
+
 // ── Stop setInterval from leaking open handles across tests ───────────────────
 // The platform calls setInterval(poll, pollMs) in setupPolling().  We replace
 // it with a no-op mock so Jest can exit cleanly.  Individual tests call poll()
@@ -381,6 +389,40 @@ describe('NUTDashboardPlatform — HomeKit tile services (Feature 1)', () => {
       expect(log.error).toHaveBeenCalledWith(
         expect.stringContaining('NUT query failed')
       );
+    });
+  });
+
+  describe('standalonePort validation', () => {
+    function makePlatform(config) {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi();
+      const log = makeMockLog();
+      const platform = new NUTDashboardPlatform(log, { host: '127.0.0.1', ups: 'ups', ...config }, api);
+      return { platform, log };
+    }
+
+    test('starts the dashboard server for a valid port', () => {
+      const { platform, log } = makePlatform({ standalonePort: 8581 });
+      expect(platform._dashboardServer).not.toBeNull();
+      expect(log.error).not.toHaveBeenCalled();
+    });
+
+    test('rejects an out-of-range port and does not start the server', () => {
+      const { platform, log } = makePlatform({ standalonePort: 70000 });
+      expect(platform._dashboardServer).toBeNull();
+      expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Invalid standalonePort'));
+    });
+
+    test('rejects a non-integer port', () => {
+      const { platform, log } = makePlatform({ standalonePort: 'abc' });
+      expect(platform._dashboardServer).toBeNull();
+      expect(log.error).toHaveBeenCalledWith(expect.stringContaining('Invalid standalonePort'));
+    });
+
+    test('leaves the server disabled when no port is set', () => {
+      const { platform, log } = makePlatform({});
+      expect(platform._dashboardServer).toBeNull();
+      expect(log.error).not.toHaveBeenCalled();
     });
   });
 

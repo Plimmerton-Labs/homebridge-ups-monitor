@@ -88,22 +88,35 @@ class NUTDashboardPlatform {
     // Standalone dashboard server — optional, configured by standalonePort
     this._dashboardServer = null;
     const standalonePort = config.standalonePort;
-    if (standalonePort) {
-      this._dashboardServer = new DashboardServer({
-        storagePath: this.storagePath,
-        upsNames:    this.upsList,
-        host:        this.host,
-        nutPort:     this.port,
-        username:    this.username,
-        password:    this.password,
-        log:         this.log,
-      });
-      this._dashboardServer.start(standalonePort).catch(err => {
-        this.log.error(`[UPS Dashboard] Failed to start standalone server: ${err.message}`);
-      });
+    if (standalonePort != null && standalonePort !== '') {
+      const portNum = Number(standalonePort);
+      if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+        this.log.error(
+          `[UPS Dashboard] Invalid standalonePort "${standalonePort}" — must be an integer 1–65535. ` +
+          'Standalone dashboard not started.'
+        );
+      } else {
+        this._startDashboardServer(portNum);
+      }
     }
 
     this.api.on('didFinishLaunching', () => this.initAccessories());
+  }
+
+  // Start the optional standalone dashboard web server on the given (validated) port.
+  _startDashboardServer(port) {
+    this._dashboardServer = new DashboardServer({
+      storagePath: this.storagePath,
+      upsNames:    this.upsList,
+      host:        this.host,
+      nutPort:     this.port,
+      username:    this.username,
+      password:    this.password,
+      log:         this.log,
+    });
+    this._dashboardServer.start(port).catch(err => {
+      this.log.error(`[UPS Dashboard] Failed to start standalone server: ${err.message}`);
+    });
   }
 
   // Called by Homebridge for every accessory it already knows about
@@ -137,9 +150,13 @@ class NUTDashboardPlatform {
       .setCharacteristic(Characteristic.Model,         'UPS Monitor')
       .setCharacteristic(Characteristic.SerialNumber,  upsName);
 
-    // Ring buffer for this UPS (1440 points = 1 per minute for 24 h)
+    // Ring buffer for this UPS — sized to retain ~24 h of history at the
+    // configured poll interval (e.g. 2880 points at 30 s). Bounded so very
+    // fast poll intervals don't produce an oversized backing file.
+    const pollSec  = Math.max(1, this.pollMs / 1000);
+    const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / pollSec)));
     const histFile = path.join(this.storagePath, `ups-history-${upsName}.json`);
-    const ringBuf  = new RingBuffer(histFile, 1440);
+    const ringBuf  = new RingBuffer(histFile, capacity);
     this.ringBuffers.set(upsName, ringBuf);
 
     // Daily CSV log for this UPS (30 days of per-minute voltage + load data)
