@@ -112,3 +112,70 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 - 1 new ring-buffer test; **177 total passing**.
 
 **Status:** open in PR #68 against `develop`.
+
+---
+
+## Feature 6 — "Verified by Homebridge" Readiness 📋 `agent/verification-readiness`
+
+**Goal:** Meet every published [verification requirement](https://github.com/homebridge/plugins#plugin-verification) (criteria last updated 2024-11-02), then submit a verification request issue to `homebridge/plugins`.
+
+### Positioning — complement to the verified `homebridge-ups`
+`homebridge-ups` (by Erik Baauw) already holds the NUT/UPS slot. It is **HomeKit-centric**: exposes UPS status/battery to Home, adds **control** (toggle audible alarm, set low-battery threshold), keeps **Eve-app history**, and ships a `ups` CLI. All of its observability lives inside Apple's ecosystem.
+
+`homebridge-ups-monitor` is positioned as an **observability & data-portability extension**, offering what `homebridge-ups` does not:
+- **Standalone web dashboard** — live UPS view + charts in *any* browser on the network (Android, Windows, wall tablet), no Home app / Eve required.
+- **Historical charts** with 1h / 6h / 12h / 24h ranges, backed by a ~24h server-side ring buffer.
+- **CSV / log export** — one-click 24h export and 30-day daily logs for spreadsheets and long-term analysis.
+- **Richer HomeKit tiles** — input/output voltage, load %, runtime, on-battery occupancy as native services for automations.
+
+We explicitly point users to `homebridge-ups` for in-Home UPS control, and (via Feature 7) add control parity so we are a genuine superset rather than only a complement.
+
+### Compliance audit & work items
+Already compliant: dynamic platform; npm + GitHub repo with issues; config Settings GUI; no analytics; no post-install scripts; files written only under the Homebridge storage dir; GitHub release notes per version (Feature: automated changelog + beta tag alignment).
+
+Gaps to close:
+1. **Node 20 / 22 / 24 support** — add `24.x` to the CI matrix, drop EOL `18.x`, bump `engines.node` to `>=20`.
+2. **Error-handling audit** — guarantee no unhandled exceptions: wrap NUT client failures, ring-buffer / file I/O, and the standalone HTTP server (`server.on('error')`, EADDRINUSE). Add tests.
+3. **"Does not start unless configured"** — explicit guard + log when no host/UPS is configured; add a test.
+4. **README / badge polish** — remove the premature `verified-by-homebridge` badge until granted; fix the duplicated "Dashboard" / "Standalone Dashboard" sections; add a short "Relationship to homebridge-ups" section.
+5. **Submit** — open the verification issue on `homebridge/plugins` with the differentiation case above. (Depends on Feature 7 for the superset claim.)
+
+**Depends on:** Feature 7 (control parity strengthens the verification case).
+
+---
+
+## Feature 7 — NUT Control Commands (close the functionality gap) 🎛️ `agent/nut-controls`
+
+**Goal:** Add the two UPS *control* capabilities `homebridge-ups` has and we currently lack, so `homebridge-ups-monitor` is a functional superset for verification.
+
+**Scope:**
+- **Audible alarm toggle** — a HomeKit `Switch` that enables/disables the UPS beeper via NUT `INSTCMD` (`beeper.enable` / `beeper.disable`, or `beeper.mute`).
+- **Low-battery threshold (set)** — make the configured threshold writable to the UPS where supported via NUT `SET battery.charge.low`, in addition to the existing HomeKit Low-Battery alert.
+
+**Implementation notes:**
+- `lib/nutClient.js` — add authenticated command support: NUT `USERNAME` / `PASSWORD` then `INSTCMD <ups> <cmd>` and `SET VAR <ups> <var> <value>`; parse `OK` / `ERR` responses.
+- Requires `upsd.users` credentials with `actions = SET` and `instcmds = ALL`; the existing `username`/`password` config feeds this. Degrade gracefully (log, don't throw) when the UPS or credentials don't permit control — many UPSes are monitor-only.
+- New tile module(s) under `lib/tiles/` following the `setup(accessory, api, upsName, opts) → { update() }` pattern; only register control services when the NUT variable/command is advertised by the device.
+- Tests with a mock NUT server for INSTCMD/SET success, ERR, and unsupported-command paths.
+
+**Risks:** control commands vary by UPS model and require privileged `upsd.users`; must never throw on unsupported hardware (ties into Feature 6 item 2).
+
+**Depends on:** existing `nutClient` / tile architecture.
+
+---
+
+## Feature 8 — Reactive Dashboard Link in Settings UI 🔗 `agent/settings-live-link`
+
+**Goal:** Make the dashboard URL shown in the plugin settings reflect the **actual** `standalonePort` the user types, instead of a static `PORT` / `8581` placeholder (see config-UI screenshot).
+
+**Why it isn't possible today:** `headerDisplay` / `footerDisplay` in `config.schema.json` are *static* markdown — Homebridge renders them once and they can't read live field values.
+
+**Approach:** add a minimal **custom UI** page via `@homebridge/plugin-ui-utils` that:
+- renders the standard schema form (`homebridge.showSchemaForm()` / lets the schema render), and
+- reads the current config (`homebridge.getPluginConfig()`), then renders a clickable `http://homebridge.local:<port>` link that updates reactively as the port field changes (listen for change events), with a copy button.
+
+**Important distinction:** this is a *link-only* custom UI — it does **not** re-introduce the full embedded dashboard that previously failed to render (that was removed in the Fixes & Polish work). Scope is deliberately tiny to avoid regressing the config screen.
+
+**Risks:** custom UI replaces the default settings renderer, so the schema form must be re-shown correctly; verify it doesn't reintroduce the blank-panel issue. Test on Homebridge UI ≥ current.
+
+**Depends on:** none (independent polish); nice-to-have for Feature 6 README/UX quality.
