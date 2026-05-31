@@ -1,10 +1,11 @@
-## [1.3.4](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.1.9-beta.61...v1.3.4) (2026-05-31)
+## [1.3.5](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.1.9-beta.61...v1.3.5) (2026-05-31)
 
 ### Features
 
 * **2b/2c:** add DailyLog for 30-day per-day CSV history ([cbe84e1](https://github.com/GodIsI/homebridge-ups-monitor/commit/cbe84e13ffd5a7257b048ebcc32368e740d01a49))
 * **3:** log export — CSV download from dashboard ([3cedd75](https://github.com/GodIsI/homebridge-ups-monitor/commit/3cedd75f86515f4c8755eb38b23604badf960523))
 * add ESLint (flat config, CI lint job, zero errors) ([65097ca](https://github.com/GodIsI/homebridge-ups-monitor/commit/65097ca24eb7129cd6b47757ab926f76067f613d))
+* automate CHANGELOG from commits; align beta npm version with release tag ([9d62bf6](https://github.com/GodIsI/homebridge-ups-monitor/commit/9d62bf64a1ac18c92ec41c64f7b9f5efef4e1756))
 * Feature 4 — Export & Share with Web Share API ([9367a35](https://github.com/GodIsI/homebridge-ups-monitor/commit/9367a356b089b0ac5ddee0b713bc949fda355dc2))
 * npm publish on release + beta, add CI badge ([94a6236](https://github.com/GodIsI/homebridge-ups-monitor/commit/94a6236f61a24e100dac212d6330607b3c932bec))
 * standalone dashboard server (Feature 5) ([9b6e873](https://github.com/GodIsI/homebridge-ups-monitor/commit/9b6e873e03fe2708c7e967b4f7a270fefd2b4765))
