@@ -102,7 +102,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
       }
 
       const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
-      const buf      = new RingBuffer(histFile, 1440);
+      const buf      = new RingBuffer(histFile, 1440, { adopt: true });
 
       return {
         success: true,
@@ -153,7 +153,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
       const { storagePath, upsName } = this._resolveContext(body);
 
       const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
-      const buf      = new RingBuffer(histFile, 1440);
+      const buf      = new RingBuffer(histFile, 1440, { adopt: true });
       const points   = buf.read();
 
       const header = 'timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min\n';
