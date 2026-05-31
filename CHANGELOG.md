@@ -1,38 +1,26 @@
-# Changelog
+## [1.3.4](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.1.9-beta.61...v1.3.4) (2026-05-31)
 
-All notable changes to this project are documented here.
+### Features
 
-## [Unreleased]
+* **2b/2c:** add DailyLog for 30-day per-day CSV history ([cbe84e1](https://github.com/GodIsI/homebridge-ups-monitor/commit/cbe84e13ffd5a7257b048ebcc32368e740d01a49))
+* **3:** log export — CSV download from dashboard ([3cedd75](https://github.com/GodIsI/homebridge-ups-monitor/commit/3cedd75f86515f4c8755eb38b23604badf960523))
+* add ESLint (flat config, CI lint job, zero errors) ([65097ca](https://github.com/GodIsI/homebridge-ups-monitor/commit/65097ca24eb7129cd6b47757ab926f76067f613d))
+* Feature 4 — Export & Share with Web Share API ([9367a35](https://github.com/GodIsI/homebridge-ups-monitor/commit/9367a356b089b0ac5ddee0b713bc949fda355dc2))
+* npm publish on release + beta, add CI badge ([94a6236](https://github.com/GodIsI/homebridge-ups-monitor/commit/94a6236f61a24e100dac212d6330607b3c932bec))
+* standalone dashboard server (Feature 5) ([9b6e873](https://github.com/GodIsI/homebridge-ups-monitor/commit/9b6e873e03fe2708c7e967b4f7a270fefd2b4765))
+* validate standalonePort range in index.js with tests ([dd54a24](https://github.com/GodIsI/homebridge-ups-monitor/commit/dd54a246e94109e64d5203dc0bfc4b86b96507d3))
 
-> ℹ️ Version numbers are assigned automatically by CI on merge — this entry is
-> left as _Unreleased_ until then.
+### Bug Fixes
 
-> ⚠️ **One-time history reset on upgrade.** This release enlarges the
-> telemetry ring buffer so it retains ~24 hours of history (previously the
-> capacity only covered about 12 hours at the default 30s poll interval).
-> Because the on-disk buffer is rebuilt when its capacity changes, **existing
-> history is cleared once** on the first run after upgrading. New data begins
-> accumulating immediately and the file is not reset again.
+* deploy.sh — use /var/lib/homebridge path and install UI dependency ([4f28a41](https://github.com/GodIsI/homebridge-ups-monitor/commit/4f28a41686a061ebe9301bc096db6d82699210ee))
+* pin @homebridge/plugin-ui-utils to ^2.0.0 (fixes Socket wildcard dep flag) ([01e5114](https://github.com/GodIsI/homebridge-ups-monitor/commit/01e5114df972201345518403caefeecade393796))
+* quote if-expressions in beta.yml and release.yml to fix YAML syntax error ([f5cae04](https://github.com/GodIsI/homebridge-ups-monitor/commit/f5cae04262c1a5b8700d93ba41517f713b69b04a))
+* render standalonePort as numeric input instead of slider ([28a7efe](https://github.com/GodIsI/homebridge-ups-monitor/commit/28a7efebf35a3afa4e0da3961e77531037ca372e))
+* replace getPluginConfig() with direct config.json read ([c250e19](https://github.com/GodIsI/homebridge-ups-monitor/commit/c250e1948af5927d5454267ac8b17c8ff09c0add))
+* set singular:true in config.schema.json ([cb1b3ef](https://github.com/GodIsI/homebridge-ups-monitor/commit/cb1b3ef864f3745bcf730a29f1298575f56002dd))
+* standalone dashboard config, chart time-range with 12h option, and ~24h history retention ([743ec8d](https://github.com/GodIsI/homebridge-ups-monitor/commit/743ec8d60c9e35ec97c918e3ae46f9dc62277e79))
+* standalone dashboard config, chart time-range with 12h option, and ~24h history retention ([8a5a841](https://github.com/GodIsI/homebridge-ups-monitor/commit/8a5a84121b39445add8bcd4ae61fda61fbe27c5b))
+* use direct download on desktop, native share sheet on mobile only ([d8d059b](https://github.com/GodIsI/homebridge-ups-monitor/commit/d8d059bea4a912e7e96425c6883de3732e40601b))
+* use PAT_VERSION_BUMP for create-pull-request action ([19d8439](https://github.com/GodIsI/homebridge-ups-monitor/commit/19d8439aa139054fe329ebefca95a1522322a4b0))
 
-### Added
-- **12h** option on the dashboard history charts (ranges are now 1h / 6h / 12h / 24h).
-- Plugin settings now explicitly call out the standalone dashboard, with header/footer
-  notes and a link describing how to open it (`http://homebridge.local:PORT`).
-
-### Changed
-- Ring buffer is now sized to retain ~24 hours of history at the configured poll
-  interval (2880 points at 30s, bounded at 8640). History readers adopt the stored
-  file's capacity instead of wiping it on a size mismatch.
-- Dashboard charts use a time-scaled x-axis pinned to the selected range, so 1h / 6h /
-  12h / 24h always span their full window regardless of how many points fall inside.
-
-### Fixed
-- Plugin config screen no longer loads the broken embedded dashboard (where JSON failed
-  to appear). Homebridge now shows the standard settings form; data is viewed via the
-  standalone dashboard.
-- Switching the chart time range now correctly changes the visible window (previously it
-  appeared stuck at roughly one hour).
-
-## Earlier releases
-
-See the Git history and GitHub Releases for versions prior to the introduction of this changelog.
+## [1.0.0-beta.6](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.0.0-beta.5...v1.0.0-beta.6) (2026-05-26)

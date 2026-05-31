@@ -10,7 +10,7 @@ name: Publish
 on:
   push:
     branches:
-      - develop   # publishes with --tag beta
+      - develop   # publishes with --tag beta (version X.Y.Z-beta.N)
       - main      # publishes with --tag latest
 
 jobs:
@@ -24,6 +24,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -36,6 +38,17 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # Develop builds publish as a proper prerelease version so the npm version
+      # matches the GitHub pre-release tag created by beta.yml (vX.Y.Z-beta.N),
+      # letting the Homebridge UI resolve release notes for installed betas.
+      - name: Stamp beta prerelease version (develop only)
+        if: github.ref == 'refs/heads/develop'
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          BETA=$(git rev-list --count HEAD)
+          npm version "${BASE}-beta.${BETA}" --no-git-tag-version --allow-same-version
+          echo "Publishing beta ${BASE}-beta.${BETA}"
 
       - name: Publish beta (develop → npm beta tag)
         if: github.ref == 'refs/heads/develop'

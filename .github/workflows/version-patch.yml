@@ -43,6 +43,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: develop
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure git
@@ -62,6 +63,9 @@ jobs:
           console.log(`Bumped to ${pkg.version}`);
           require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `new_version=${pkg.version}\n`);
           EOF
+
+      - name: Regenerate CHANGELOG from commits
+        run: npx --yes conventional-changelog-cli@5 -p conventionalcommits -r 0 -o CHANGELOG.md
 
       - name: Open version-bump PR
         id: cpr
