@@ -2,7 +2,8 @@
   "pluginAlias": "NUTDashboard",
   "pluginType": "platform",
   "singular": true,
-  "customUi": true,
+  "headerDisplay": "Monitor your UPS via NUT. **The live dashboard (voltage, battery, load, runtime history) is served as a standalone website** — set a **Standalone Dashboard Port** below, save, and restart Homebridge.",
+  "footerDisplay": "**📊 Open the dashboard:** once a port is set and Homebridge has restarted, browse to `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value below). It works from any browser on your network — phone, tablet, or desktop.",
   "schema": {
     "type": "object",
     "properties": {
@@ -65,7 +66,7 @@
         "type": "integer",
         "minimum": 1,
         "maximum": 65535,
-        "description": "Port to host the UPS dashboard as a local website (e.g. 8581). Leave blank to disable. Access at http://homebridge.local:PORT or http://localhost:PORT."
+        "description": "Port to host the UPS dashboard as a local website (e.g. 8581). Leave blank to disable. After saving and restarting Homebridge, open http://homebridge.local:8581 (or http://localhost:8581) — substituting the port you set here."
       }
     }
   },
@@ -95,7 +96,7 @@
     {
       "type": "fieldset",
       "title": "Standalone Dashboard",
-      "description": "Host the dashboard as a local website accessible from any browser on your network.",
+      "description": "This is where you view your UPS data. Host the dashboard as a local website accessible from any browser on your network, then open it at http://homebridge.local:PORT.",
       "items": [
         "standalonePort"
       ]

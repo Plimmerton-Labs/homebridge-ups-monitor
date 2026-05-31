@@ -137,9 +137,13 @@ class NUTDashboardPlatform {
       .setCharacteristic(Characteristic.Model,         'UPS Monitor')
       .setCharacteristic(Characteristic.SerialNumber,  upsName);
 
-    // Ring buffer for this UPS (1440 points = 1 per minute for 24 h)
+    // Ring buffer for this UPS — sized to retain ~24 h of history at the
+    // configured poll interval (e.g. 2880 points at 30 s). Bounded so very
+    // fast poll intervals don't produce an oversized backing file.
+    const pollSec  = Math.max(1, this.pollMs / 1000);
+    const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / pollSec)));
     const histFile = path.join(this.storagePath, `ups-history-${upsName}.json`);
-    const ringBuf  = new RingBuffer(histFile, 1440);
+    const ringBuf  = new RingBuffer(histFile, capacity);
     this.ringBuffers.set(upsName, ringBuf);
 
     // Daily CSV log for this UPS (30 days of per-minute voltage + load data)
