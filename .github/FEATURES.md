@@ -53,7 +53,7 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 ---
 
-## Feature 4 — Export & Share `agent/export-share`
+## Feature 4 — Export & Share ✅ `agent/export-share`
 
 **Goal:** Replace the current Data Export panel with a clean two-button share flow that feels native on any device (Mac, iPhone, iPad, Android).
 
@@ -77,7 +77,7 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 ---
 
-## Feature 5 — Standalone Dashboard Server `agent/standalone-dashboard`
+## Feature 5 — Standalone Dashboard Server ✅ `agent/standalone-dashboard`
 
 **Goal:** Host the UPS dashboard as a local website on the Raspberry Pi so any browser on the network can reach it directly — no Homebridge UI, no plugin config panel required.
 
@@ -96,3 +96,19 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 - `test/dashboardServer.test.js` — 20 integration tests; 176 total passing.
 
 **Depends on:** Feature 4 (export endpoints already implemented)
+
+---
+
+## Fixes & Polish — Dashboard 🚧 `agent/standalone-dashboard` (PR #68 → `develop`)
+
+**Goal:** Make the standalone dashboard the single, reliable way to view UPS data and fix the history charts.
+
+**Delivered:**
+- **Removed `customUi`** from `config.schema.json` — the embedded config-panel dashboard never rendered its JSON. Homebridge now shows the standard settings form; the standalone dashboard (Feature 5) is the viewer. Added `headerDisplay`/`footerDisplay` + clearer field text linking to it. (Kept `singular: true` from #64.)
+- **Chart time-range fixed** — charts use a `linear` x-axis pinned to the selected window, so **1h / 6h / 12h / 24h** each span their full range (previously stuck at ~1h). Added the **12h** button.
+- **~24h history retention** — ring buffer sized from the poll interval (2880 points at 30s, bounded 8640). Readers use `adopt` mode to take on the stored file's capacity instead of wiping history on a size mismatch. ⚠️ one-time history reset on first run after upgrade (see `CHANGELOG.md`).
+- **No new CDN dependency** — the time axis uses Chart.js's built-in `linear` scale + tick/tooltip formatter (dropped a `chartjs-adapter-date-fns` script that CodeQL flagged as an untrusted source).
+- **Docs** — README reworked to describe the dashboard as standalone-only; added `CHANGELOG.md`.
+- 1 new ring-buffer test; **177 total passing**.
+
+**Status:** open in PR #68 against `develop`.
