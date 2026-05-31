@@ -64,9 +64,8 @@
       "standalonePort": {
         "title": "Standalone Dashboard Port",
         "type": "integer",
-        "minimum": 1,
-        "maximum": 65535,
-        "description": "Port to host the UPS dashboard as a local website (e.g. 8581). Leave blank to disable. After saving and restarting Homebridge, open http://homebridge.local:8581 (or http://localhost:8581) — substituting the port you set here."
+        "placeholder": 8581,
+        "description": "Port to host the UPS dashboard as a local website (1–65535, e.g. 8581). Leave blank to disable. After saving and restarting Homebridge, open http://homebridge.local:8581 (or http://localhost:8581) — substituting the port you set here."
       }
     }
   },

@@ -117,7 +117,7 @@ By default the dashboard is only accessible through the Homebridge UI. If you wa
 "standalonePort": 4080
 ```
 
-Once Homebridge restarts, the dashboard is available at:
+Once Homebridge restarts, the dashboard is available from any device on your network — phone, tablet, or desktop:
 
 | URL | Use case |
 |-----|----------|
@@ -125,7 +125,7 @@ Once Homebridge restarts, the dashboard is available at:
 | `http://localhost:4080` | From the Pi itself |
 | `http://<pi-ip>:4080` | If mDNS isn't working — replace with your Pi's IP address |
 
-It works from any browser on your network — phone, tablet, or desktop — without needing the Homebridge UI open. You'll see:
+You'll see:
 
 - Status banner (Online / On Battery / Low Battery) with UPS model name
 - Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
