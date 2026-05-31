@@ -5,7 +5,7 @@
 [![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![CI](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml)
 
-A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **live dashboard** directly in the Homebridge UI.
+A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
 
 Built for Raspberry Pi setups running NUT alongside Homebridge — works great alongside solar/battery monitoring projects.
 
@@ -125,7 +125,14 @@ Once Homebridge restarts, the dashboard is available at:
 | `http://localhost:4080` | From the Pi itself |
 | `http://<pi-ip>:4080` | If mDNS isn't working — replace with your Pi's IP address |
 
-The standalone server serves the same live dashboard as the Homebridge UI panel — voltage charts, battery history, load, runtime — and updates every 15 seconds.
+It works from any browser on your network — phone, tablet, or desktop — without needing the Homebridge UI open. You'll see:
+
+- Status banner (Online / On Battery / Low Battery) with UPS model name
+- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
+- Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
+- Auto-refresh every 15 seconds with a countdown indicator
+
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
 
 **To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
 
