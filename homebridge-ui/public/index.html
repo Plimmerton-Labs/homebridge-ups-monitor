@@ -222,6 +222,7 @@
     <div class="range-btns">
       <button class="range-btn" data-h="1"  onclick="setRange(1)">1h</button>
       <button class="range-btn" data-h="6"  onclick="setRange(6)">6h</button>
+      <button class="range-btn" data-h="12" onclick="setRange(12)">12h</button>
       <button class="range-btn active" data-h="24" onclick="setRange(24)">24h</button>
     </div>
   </div>
@@ -284,7 +285,7 @@ async function apiRequest(endpoint, body = {}) {
 }
 
 const REFRESH_INTERVAL_S = 15;
-const MAX_POINTS = 1440;
+const MAX_POINTS = 8640;  // generous client cap; server retains ~24h per its poll interval
 
 let allUPSData   = [];
 let activeUPSIdx = 0;
@@ -340,21 +341,27 @@ function appendLivePoint(upsName, data) {
 }
 
 function slicedHistory(upsName) {
-  const all = serverHistory[upsName] || [];
-  if (!all.length) return { labels: [], inV: [], outV: [], bat: [], load: [], total: 0 };
-  const cutoff  = new Date(Date.now() - activeRangeH * 3600 * 1000).toISOString();
-  const visible = all.filter(p => p.t >= cutoff);
-  const pts     = visible.length ? visible : all.slice(-Math.min(60, all.length));
-  // Decimate to ≤120 points for chart performance
-  const step = Math.max(1, Math.floor(pts.length / 120));
-  const dec  = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+  const all   = serverHistory[upsName] || [];
+  const now   = Date.now();
+  const since = now - activeRangeH * 3600 * 1000;
+  if (!all.length) return { inV: [], outV: [], bat: [], load: [], total: 0, since, now };
+  // Only points within the selected window — the x-axis is pinned to [since, now]
+  // so a sparse window simply shows empty space rather than collapsing the range.
+  const cutoff  = new Date(since).toISOString();
+  const pts     = all.filter(p => p.t >= cutoff);
+  // Decimate for chart performance; keep more detail on longer ranges.
+  const TARGET = 240;
+  const step   = Math.max(1, Math.floor(pts.length / TARGET));
+  const dec    = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+  const xy = key => dec.map(p => ({ x: new Date(p.t).getTime(), y: p[key] }));
   return {
-    labels: dec.map(p => fmtTime(p.t)),
-    inV:    dec.map(p => p.inV),
-    outV:   dec.map(p => p.outV),
-    bat:    dec.map(p => p.bat),
-    load:   dec.map(p => p.load),
-    total:  all.length,
+    inV:   xy('inV'),
+    outV:  xy('outV'),
+    bat:   xy('bat'),
+    load:  xy('load'),
+    total: all.length,
+    since,
+    now,
   };
 }
 
@@ -362,9 +369,20 @@ function slicedHistory(upsName) {
 const OPTS = {
   responsive: true, maintainAspectRatio: false,
   interaction: { mode: 'index', intersect: false },
-  plugins: { legend: { labels: { color: '#7a8399', font: { size: 11 }, boxWidth: 10 } } },
+  plugins: {
+    legend: { labels: { color: '#7a8399', font: { size: 11 }, boxWidth: 10 } },
+    tooltip: { callbacks: { title: (items) => (items.length ? fmtTime(items[0].parsed.x) : '') } },
+  },
   scales: {
-    x: { ticks: { color: '#7a8399', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+    x: {
+      type: 'linear',
+      bounds: 'ticks',
+      ticks: {
+        color: '#7a8399', font: { size: 10 }, maxTicksLimit: 8, autoSkip: true,
+        callback: (v) => fmtTime(v),
+      },
+      grid: { color: 'rgba(255,255,255,0.04)' },
+    },
     y: { ticks: { color: '#7a8399', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
   },
   elements: { point: { radius: 1, hoverRadius: 4 }, line: { tension: 0.3 } },
@@ -393,22 +411,28 @@ function initCharts() {
 }
 
 function updateCharts(upsName) {
-  const { labels, inV, outV, bat, load, total } = slicedHistory(upsName);
+  const { inV, outV, bat, load, total, since, now } = slicedHistory(upsName);
 
-  voltageChart.data.labels           = labels;
+  // Pin the x-axis to the selected window so 1h / 6h / 24h always span correctly,
+  // regardless of how many points fall inside it.
+  for (const ch of [voltageChart, batteryChart]) {
+    ch.options.scales.x.min = since;
+    ch.options.scales.x.max = now;
+  }
+
   voltageChart.data.datasets[0].data = inV;
   voltageChart.data.datasets[1].data = outV;
   voltageChart.update();
 
-  batteryChart.data.labels           = labels;
   batteryChart.data.datasets[0].data = bat;
   batteryChart.data.datasets[1].data = load;
   batteryChart.update();
 
+  const plotted = inV.length;
   const stored = total >= 60
     ? `${Math.round(total / 60 * 10) / 10}h stored`
     : `${total} point${total !== 1 ? 's' : ''} stored`;
-  const meta = total ? `${stored} · showing last ${activeRangeH}h · ${labels.length} plotted` : 'No history yet — data builds up over time';
+  const meta = total ? `${stored} · showing last ${activeRangeH}h · ${plotted} plotted` : 'No history yet — data builds up over time';
   document.getElementById('history-meta').textContent   = meta;
   document.getElementById('history-meta-b').textContent = meta;
 }
@@ -610,7 +634,7 @@ function initExportButtons() {
   initExportButtons();
   // First live fetch so we know the UPS name
   await fetchData();
-  // Then load the full server-side history (up to 1440 points / 24h)
+  // Then load the full server-side history (~24h, depending on poll interval)
   const upsName = allUPSData[activeUPSIdx]?._upsName;
   if (upsName) {
     await fetchHistory(upsName);
