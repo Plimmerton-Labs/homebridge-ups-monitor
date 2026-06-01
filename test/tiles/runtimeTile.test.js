@@ -19,6 +19,23 @@ describe('runtimeTile', () => {
     });
   });
 
+
+  describe('service name', () => {
+    const VALID = /^[A-Za-z0-9][A-Za-z0-9 ']*[A-Za-z0-9]$/; // HAP-allowed name
+
+    test('repairs an invalid cached name and sets a HAP-valid Name', () => {
+      const acc = makeMockAccessory();
+      // Simulate an accessory cached by an older version with the bad "(min)" name.
+      const existing = acc.addService(Service.TemperatureSensor);
+      existing.displayName = 'CyberPower Runtime (min)';
+      setupRuntimeTile(acc, api, 'CyberPower');
+      const svc = acc.svc(Service.TemperatureSensor);
+      expect(svc.displayName).toBe('CyberPower Runtime in Mins');
+      expect(svc.get('Name')).toBe('CyberPower Runtime in Mins');
+      expect(svc.get('Name')).toMatch(VALID);
+    });
+  });
+
   describe('CurrentTemperature (runtime in minutes)', () => {
     test('converts seconds to minutes (3600 s → 60)', () => {
       const { tile, svc } = make();

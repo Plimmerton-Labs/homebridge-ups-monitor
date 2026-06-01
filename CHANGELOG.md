@@ -1,3 +1,9 @@
+## [1.9.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.9.0...v1.9.1) (2026-06-01)
+
+### Bug Fixes
+
+* use HAP-valid runtime tile name and repair cached accessories ([7629c80](https://github.com/GodIsI/homebridge-ups-monitor/commit/7629c8029f3637cfaf9b92176f7d674a31daf275))
+
 ## [1.9.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.8.1-beta.218...v1.9.0) (2026-06-01)
 
 ### Bug Fixes
