@@ -30,6 +30,7 @@ const Characteristic = {
   Brightness:               makeChar('Brightness'),
   CurrentAmbientLightLevel: makeChar('CurrentAmbientLightLevel'),
   CurrentTemperature:       makeChar('CurrentTemperature'),
+  Name:                     makeChar('Name'),
   Manufacturer:             makeChar('Manufacturer'),
   Model:                    makeChar('Model'),
   SerialNumber:             makeChar('SerialNumber'),
