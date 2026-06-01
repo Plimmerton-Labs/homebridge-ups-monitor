@@ -1,11 +1,12 @@
-## [1.4.9](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.8-beta.182...v1.4.9) (2026-06-01)
+## [1.4.10](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.9-beta.184...v1.4.10) (2026-06-01)
 
 ### Features
 
 * NUT control commands — audible-alarm switch + low-battery threshold sync (opt-in) ([aef88fe](https://github.com/GodIsI/homebridge-ups-monitor/commit/aef88fe9fe3e5c989503e13c8bdb87235b05f0a3))
 * reactive dashboard link in settings UI (Feature 7) ([#91](https://github.com/GodIsI/homebridge-ups-monitor/issues/91)) ([7a3d57f](https://github.com/GodIsI/homebridge-ups-monitor/commit/7a3d57f4c47613c3a1e8fe689a24a4d2b2df3140))
+* store data files in a dedicated subdirectory (Feature 10) ([#97](https://github.com/GodIsI/homebridge-ups-monitor/issues/97)) ([f2ecb1a](https://github.com/GodIsI/homebridge-ups-monitor/commit/f2ecb1a50f57dfdf83a1ab7ea4fe1c541398a22b))
 
-## [1.4.8-beta.182](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.7-beta.178...v1.4.8-beta.182) (2026-05-31)
+## [1.4.9-beta.184](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.8-beta.182...v1.4.9-beta.184) (2026-05-31)
 
 ### Features
 
