@@ -1,10 +1,10 @@
-## [1.6.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.6.0...v1.6.1) (2026-06-01)
+## [1.7.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.6.1-beta.203...v1.7.0) (2026-06-01)
 
 ### Bug Fixes
 
 * address Homebridge verification check failures ([8fefc13](https://github.com/GodIsI/homebridge-ups-monitor/commit/8fefc13c6ad6db7e8afd395a3d69a579a9ed1a8e))
 
-## [1.6.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.5.1-beta.197...v1.6.0) (2026-06-01)
+## [1.6.1-beta.203](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.6.0...v1.6.1-beta.203) (2026-06-01)
 
 ## [1.5.1-beta.197](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.5.0...v1.5.1-beta.197) (2026-06-01)
 
