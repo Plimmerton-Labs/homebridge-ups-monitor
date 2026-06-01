@@ -26,13 +26,15 @@ Built for Raspberry Pi setups running NUT alongside Homebridge — works great a
 
 ## Screenshots
 
-> Drop your own captures into `docs/images/` (filenames below) and they'll render here.
+**Standalone dashboard** — live cards + selectable 1h / 6h / 12h / 24h history charts and CSV export, in any browser:
 
-| Standalone dashboard | Plugin settings |
+![UPS standalone dashboard](docs/images/dashboard.png)
+
+| HomeKit tiles (Apple Home) | Plugin settings |
 |---|---|
-| ![UPS dashboard](docs/images/dashboard.png) | ![Plugin settings](docs/images/settings.png) |
+| ![HomeKit tiles](docs/images/homekit-tiles.png) | ![Plugin settings](docs/images/settings.png) |
 
-The dashboard shows live voltage/battery/load/runtime cards and selectable 1h / 6h / 12h / 24h history charts; it works from any browser on your network and can be added to a phone or tablet home screen.
+The dashboard works from any device on your network and can be added to a phone or tablet home screen. In Apple Home, each UPS metric appears as a native tile (battery, outlet, on-battery, load, input/output voltage, runtime, and optional alarm).
 
 ---
 
