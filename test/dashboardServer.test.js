@@ -126,6 +126,18 @@ describe('DashboardServer', () => {
     expect(body).toMatch(/Chart\.js v4/);
   });
 
+  test('GET /icons/icon.svg serves the dashboard icon', async () => {
+    const { status, body } = await get(port, '/icons/icon.svg');
+    expect(status).toBe(200);
+    expect(body).toMatch(/<svg/i);
+  });
+
+  test('GET /manifest.webmanifest serves the web app manifest', async () => {
+    const { status, body } = await get(port, '/manifest.webmanifest');
+    expect(status).toBe(200);
+    expect(body).toMatch(/"icons"/);
+  });
+
   // ── Unknown routes ─────────────────────────────────────────────────────────
 
   test('POST /unknown returns 404', async () => {
