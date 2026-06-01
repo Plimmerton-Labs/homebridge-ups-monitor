@@ -1,13 +1,14 @@
 name: Sync Main to Develop
 
 # Runs after a chore/version-bump-* PR is merged into main.
-# Checks out develop, creates a sync branch, cherry-picks the version
-# files from main, then opens an auto-merge PR to develop.
+# Carries the new stable version from main back to develop.
 #
-# Fixed: the old create-pull-request approach made no local changes
-# (the workflow checked out main but didn't edit anything), so it
-# silently no-op'd. Now we explicitly checkout develop, apply main's
-# package.json/lock, commit, push, then open the PR via gh CLI.
+# IMPORTANT: this uses a real `git merge origin/main` (a merge commit) and the
+# resulting PR is auto-merged with `--merge` (NOT `--squash`). A merge commit
+# keeps main's version-bump commit as a genuine ancestor of develop, so the
+# package.json version line never diverges and develop -> main promotions don't
+# conflict. Squashing this sync is what previously caused recurring version
+# conflicts. See docs/RELEASE.md.
 
 on:
   pull_request:
@@ -40,27 +41,34 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch main and read version
+      - name: Read version from main
         id: version
         run: |
           git fetch origin main
           VERSION=$(git show origin/main:package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create sync branch and apply version from main
+      - name: Create sync branch and merge main into develop
         id: branch
         run: |
           SYNC_BRANCH="chore/sync-main-${{ steps.version.outputs.version }}"
           git checkout -b "$SYNC_BRANCH"
 
-          # Apply package.json and package-lock.json from main
-          git checkout origin/main -- package.json package-lock.json
+          # True merge so main's commits become ancestors of develop.
+          # If develop already contains everything, this is a no-op.
+          if git merge --no-edit origin/main; then
+            echo "merged main cleanly"
+          else
+            # Only the version line is expected to conflict — take main's values.
+            git checkout --theirs -- package.json package-lock.json 2>/dev/null || true
+            git add package.json package-lock.json
+            git commit --no-edit
+          fi
 
-          if git diff --staged --quiet; then
+          if git diff --quiet origin/develop -- .; then
             echo "Nothing to sync — develop already at ${{ steps.version.outputs.version }}"
             echo "created=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "chore: sync version ${{ steps.version.outputs.version }} from main"
             git push origin "$SYNC_BRANCH"
             echo "name=$SYNC_BRANCH" >> "$GITHUB_OUTPUT"
             echo "created=true" >> "$GITHUB_OUTPUT"
@@ -76,14 +84,14 @@ jobs:
             --base develop \
             --head "${{ steps.branch.outputs.name }}" \
             --title "chore: sync version ${{ steps.version.outputs.version }} from main" \
-            --body "Automated sync of version ${{ steps.version.outputs.version }} from main back to develop.")
+            --body "Automated sync of version ${{ steps.version.outputs.version }} from main back to develop. Merge with a MERGE COMMIT to preserve ancestry (see docs/RELEASE.md).")
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Enable auto-merge
+      - name: Enable auto-merge (merge commit, NOT squash)
         if: steps.pr.outputs.number != ''
         env:
           GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
         run: |
           gh pr merge "${{ steps.pr.outputs.number }}" \
-            --auto --squash --repo ${{ github.repository }}
+            --auto --merge --repo ${{ github.repository }}

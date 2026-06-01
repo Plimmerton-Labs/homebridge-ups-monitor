@@ -60,6 +60,8 @@ Both `main` and `develop` have branch protection enabled — **direct pushes are
 
 **Never push directly to `develop` or `main`.** Always use a PR.
 
+**Merge-method policy (see [docs/RELEASE.md](../docs/RELEASE.md)):** squash-merge feature PRs into `develop`, but use a **merge commit (never squash)** for the `develop → main` promotion and the `main → develop` version sync-back. Squashing those syncs breaks branch ancestry and makes `package.json` version conflicts recur every release.
+
 **Never open a PR directly to `main` from a feature branch.** `main` is fed only from `develop`.
 
 ---

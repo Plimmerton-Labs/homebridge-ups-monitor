@@ -111,4 +111,110 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 - **Docs** — README reworked to describe the dashboard as standalone-only; added `CHANGELOG.md`.
 - 1 new ring-buffer test; **177 total passing**.
 
-**Status:** open in PR #68 against `develop`.
+**Status:** ✅ merged (#68, #70).
+
+---
+
+## Feature 6 — NUT Control Commands (close the functionality gap) 🎛️ `agent/nut-controls`
+
+**Goal:** Add the two UPS *control* capabilities `homebridge-ups` has and we currently lack, so `homebridge-ups-monitor` is a functional superset. Prerequisite for the verification request (Feature 8).
+
+**Scope:**
+- **Audible alarm toggle** — a HomeKit `Switch` that enables/disables the UPS beeper via NUT `INSTCMD` (`beeper.enable` / `beeper.disable`, or `beeper.mute`).
+- **Low-battery threshold (set)** — make the configured threshold writable to the UPS where supported via NUT `SET battery.charge.low`, in addition to the existing HomeKit Low-Battery alert.
+
+**Implementation notes:**
+- `lib/nutClient.js` — add authenticated command support: NUT `USERNAME` / `PASSWORD` then `INSTCMD <ups> <cmd>` and `SET VAR <ups> <var> <value>`; parse `OK` / `ERR` responses.
+- Requires `upsd.users` credentials with `actions = SET` and `instcmds = ALL`; the existing `username`/`password` config feeds this. Degrade gracefully (log, don't throw) when the UPS or credentials don't permit control — many UPSes are monitor-only.
+- New tile module(s) under `lib/tiles/` following the `setup(accessory, api, upsName, opts) → { update() }` pattern; only register control services when the NUT variable/command is advertised by the device.
+- Tests with a mock NUT server for INSTCMD/SET success, ERR, and unsupported-command paths.
+
+**Risks:** control commands vary by UPS model and require privileged `upsd.users`; must never throw on unsupported hardware.
+
+**Depends on:** existing `nutClient` / tile architecture.
+
+---
+
+## Feature 7 — Reactive Dashboard Link in Settings UI 🔗 `agent/settings-live-link`
+
+**Goal:** Make the dashboard URL shown in the plugin settings reflect the **actual** `standalonePort` the user types, instead of a static `PORT` / `8581` placeholder (see config-UI screenshot).
+
+**Why it isn't possible today:** `headerDisplay` / `footerDisplay` in `config.schema.json` are *static* markdown — Homebridge renders them once and they can't read live field values.
+
+**Approach:** add a minimal **custom UI** page via `@homebridge/plugin-ui-utils` that:
+- renders the standard schema form (`homebridge.showSchemaForm()` / lets the schema render), and
+- reads the current config (`homebridge.getPluginConfig()`), then renders a clickable `http://homebridge.local:<port>` link that updates reactively as the port field changes (listen for change events), with a copy button.
+
+**Important distinction:** this is a *link-only* custom UI — it does **not** re-introduce the full embedded dashboard that previously failed to render (that was removed in the Fixes & Polish work). Scope is deliberately tiny to avoid regressing the config screen.
+
+**Risks:** custom UI replaces the default settings renderer, so the schema form must be re-shown correctly; verify it doesn't reintroduce the blank-panel issue. Test on Homebridge UI ≥ current.
+
+**Depends on:** none (independent polish).
+
+---
+
+## Feature 8 — "Verified by Homebridge" Readiness 📋 `agent/verification-readiness`
+
+**Goal:** Meet every published [verification requirement](https://github.com/homebridge/plugins#plugin-verification) (criteria last updated 2024-11-02), then submit a verification request issue to `homebridge/plugins`.
+
+### Positioning — complement to the verified `homebridge-ups`
+`homebridge-ups` (by Erik Baauw) already holds the NUT/UPS slot. It is **HomeKit-centric**: exposes UPS status/battery to Home, adds **control** (toggle audible alarm, set low-battery threshold), keeps **Eve-app history**, and ships a `ups` CLI. All of its observability lives inside Apple's ecosystem.
+
+`homebridge-ups-monitor` is positioned as an **observability & data-portability extension**, offering what `homebridge-ups` does not:
+- **Standalone web dashboard** — live UPS view + charts in *any* browser on the network (Android, Windows, wall tablet), no Home app / Eve required.
+- **Historical charts** with 1h / 6h / 12h / 24h ranges, backed by a ~24h server-side ring buffer.
+- **CSV / log export** — one-click 24h export and 30-day daily logs for spreadsheets and long-term analysis.
+- **Richer HomeKit tiles** — input/output voltage, load %, runtime, on-battery occupancy as native services for automations.
+
+With Feature 6 adding control parity, we are a genuine superset rather than only a complement.
+
+### Compliance audit & work items
+Already compliant: dynamic platform; npm + GitHub repo with issues; config Settings GUI; no analytics; no post-install scripts; files written only under the Homebridge storage dir; GitHub release notes per version (automated changelog + beta tag alignment).
+
+Gaps to close:
+1. **Node 20 / 22 / 24 support** — add `24.x` to the CI matrix, drop EOL `18.x`, bump `engines.node` to `>=20`.
+2. **Error-handling audit** — guarantee no unhandled exceptions: wrap NUT client failures, ring-buffer / file I/O, and the standalone HTTP server (`server.on('error')`, EADDRINUSE). Add tests.
+3. **"Does not start unless configured"** — explicit guard + log when no host/UPS is configured; add a test.
+4. **README / badge polish** — remove the premature `verified-by-homebridge` badge until granted; fix the duplicated "Dashboard" / "Standalone Dashboard" sections; add a short "Relationship to homebridge-ups" section.
+5. **Submit** — open the verification issue on `homebridge/plugins` with the differentiation case above.
+
+**Depends on:** Feature 6 (control parity strengthens the verification case).
+
+---
+
+## Feature 9 — Dependency Hygiene / Socket.dev Alert Triage 🧹 `agent/dependency-hygiene` (backlog)
+
+**Goal:** Resolve or formally triage the Socket.dev dependency alerts so the published package presents a clean supply-chain profile.
+
+**Context:** Alerts are *Dependency Alerts* (the dependency tree), not our own code. The only **runtime** dependency is `@homebridge/plugin-ui-utils`; `jest`, `eslint`, `@eslint/js`, and `conventional-changelog-cli` are **devDependencies** and are **not** included in the npm tarball users install. Most flags (eval, shell access, network, URL strings, dynamic require, filesystem, "unpopular/unmaintained/deprecated") originate in the dev tree.
+
+**Scope:**
+1. **Separate runtime vs dev risk** — confirm which alerts are reachable in the *published* package (runtime deps only). Audit `@homebridge/plugin-ui-utils` and its transitive tree for the flagged behaviors; document that dev-only alerts don't ship.
+2. **Shrink the dev footprint** — `conventional-changelog-cli` pulls a large tree (a likely source of several alerts). Consider removing it from `devDependencies` and invoking it via `npx --yes conventional-changelog-cli@5` only in CI (the bump workflows already do this), so it's not in `package-lock.json`/the dev install at all.
+3. **Identify the Deprecated + Unmaintained packages** — pin, replace, or document; raise upstream if needed.
+4. **Formal triage** — add a Socket config (`socket.yml`) acknowledging accepted dev-only alerts with written justifications, so the dashboard reflects reviewed status rather than open warnings.
+5. **Optional** — add a Socket / `npm audit` gate to CI (an `audit.yml` already exists) to catch new high-severity dependency issues going forward.
+
+**Outcome:** a clean (or fully-triaged) Socket profile and a smaller dependency surface in the shipped package — supports the verification effort (Feature 8) and user trust.
+
+**Depends on:** none (independent hygiene); coordinate with the changelog tooling added for release notes.
+
+---
+
+## Feature 10 — Tidy Data File Storage 🗂️ `agent/data-subdir`
+
+**Goal:** Stop scattering data files across the Homebridge storage root. Keep them, but inside a dedicated subdirectory of the storage path.
+
+**Context:** The plugin currently writes `ups-history-<ups>.json` and `ups-log-<ups>-YYYY-MM-DD.csv` directly into `<storage>/` (e.g. `/var/lib/homebridge/`), cluttering it alongside `config.json`, `accessories/`, etc. This is verification-compliant (files live in the storage dir, never in `node_modules`, which is wiped on update) but untidy.
+
+**Scope:**
+1. **Dedicated subdirectory** — write all plugin data under `<storage>/homebridge-ups-monitor/` (created on startup). Update the path resolution in `index.js`, `lib/ringBuffer.js`, `lib/dailyLog.js`, `lib/dashboardServer.js`, and `homebridge-ui/server.js` so the writer and all readers agree.
+2. **One-time migration** — on startup, move any existing `ups-history-*.json` / `ups-log-*.csv` from the storage root into the subdirectory so history/logs aren't lost. Best-effort; log and skip on error.
+3. **Stay in the storage dir** — never write to the package directory; keep resolving the storage path the existing way (`UIX_STORAGE_PATH` → `~/.homebridge`).
+4. **Cleanup (related)** — de-duplicate stale case-variant files (e.g. `ups-history-CyberPower.json` vs `ups-history-cyberpower.json`) created when a UPS name's casing changed. Decide whether to normalize the on-disk key or just document that NUT UPS names are case-sensitive.
+
+**Tests:** path-resolution + migration unit tests (mock storage dir with pre-existing root files → assert they move into the subdir and are still read).
+
+**Outcome:** a clean storage root and a self-contained data folder — easier to back up, inspect, and reason about; supports the verification/tidiness goals.
+
+**Depends on:** none.

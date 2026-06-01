@@ -2,8 +2,9 @@
   "pluginAlias": "NUTDashboard",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "Monitor your UPS via NUT. **The live dashboard (voltage, battery, load, runtime history) is served as a standalone website** — set a **Standalone Dashboard Port** below, save, and restart Homebridge.",
-  "footerDisplay": "**📊 Open the dashboard:** once a port is set and Homebridge has restarted, browse to `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value below). It works from any browser on your network — phone, tablet, or desktop.",
+  "customUi": true,
+  "headerDisplay": "Monitor your UPS via NUT. **The live dashboard (voltage, battery, load, runtime history) is served as a standalone website** \u2014 set a **Standalone Dashboard Port** below, save, and restart Homebridge.",
+  "footerDisplay": "**\ud83d\udcca Open the dashboard:** once a port is set and Homebridge has restarted, browse to `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value below). It works from any browser on your network \u2014 phone, tablet, or desktop.",
   "schema": {
     "type": "object",
     "properties": {
@@ -65,7 +66,19 @@
         "title": "Standalone Dashboard Port",
         "type": "integer",
         "placeholder": 8581,
-        "description": "Port to host the UPS dashboard as a local website (1–65535, e.g. 8581). Leave blank to disable. After saving and restarting Homebridge, open http://homebridge.local:8581 (or http://localhost:8581) — substituting the port you set here."
+        "description": "Port to host the UPS dashboard as a local website (1\u201365535, e.g. 8581). Leave blank to disable. After saving and restarting Homebridge, open http://homebridge.local:8581 (or http://localhost:8581) \u2014 substituting the port you set here."
+      },
+      "alarmControl": {
+        "title": "Enable Audible Alarm Control",
+        "type": "boolean",
+        "default": false,
+        "description": "Expose a HomeKit switch to enable/disable the UPS beeper. Requires a NUT UPS that supports the beeper commands and upsd.users credentials with 'instcmds = beeper.* ' (or ALL). Writes to the UPS."
+      },
+      "syncLowBatteryThreshold": {
+        "title": "Write Low Battery Threshold to UPS",
+        "type": "boolean",
+        "default": false,
+        "description": "On startup, push the Low Battery Threshold above to the UPS (NUT 'battery.charge.low') where the device allows it. Requires upsd.users credentials with 'actions = SET'. Writes to the UPS."
       }
     }
   },
@@ -90,6 +103,17 @@
         "ups",
         "pollInterval",
         "lowBatteryThreshold"
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "UPS Controls (advanced \u2014 writes to the UPS)",
+      "description": "Optional. These options send commands to the UPS and need privileged upsd.users credentials. Leave off for read-only monitoring.",
+      "expandable": true,
+      "expanded": false,
+      "items": [
+        "alarmControl",
+        "syncLowBatteryThreshold"
       ]
     },
     {

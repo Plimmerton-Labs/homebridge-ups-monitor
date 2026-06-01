@@ -1,0 +1,21 @@
+# Socket.dev configuration — https://docs.socket.dev/docs/socket-yml
+version: 2
+
+# Only run Socket pull-request alerts when dependency manifests actually change.
+# Most PRs here touch code/docs only and don't alter the dependency tree, so this
+# avoids surfacing (unchanged) transitive dev-dependency alerts on every PR.
+# Socket only ever ingests manifest files, never source code.
+triggerPaths:
+  - "package.json"
+  - "package-lock.json"
+
+githubApp:
+  enabled: true
+  dependencyOverviewEnabled: true
+
+# Note on remaining alerts: the only RUNTIME dependency shipped to users is
+# @homebridge/plugin-ui-utils. All other packages (jest, eslint, @eslint/js) are
+# devDependencies and are NOT included in the published npm tarball, so their
+# supply-chain alerts (eval/shell/network/filesystem/etc.) do not reach users.
+# Formal per-alert acceptance is managed via Socket repository labels in the
+# dashboard rather than the (deprecated) issueRules key.
