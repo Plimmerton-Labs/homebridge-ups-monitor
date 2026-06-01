@@ -36,20 +36,22 @@ function makePoint(dateStr, inV = 230, outV = 229, load = 20) {
 
 describe('DailyLog — construction', () => {
   test('does not create the storage directory eagerly (created lazily on first append)', () => {
-    const dir = path.join(os.tmpdir(), `new-dir-${Date.now()}`);
+    const base = tmpDir();
+    const dir  = path.join(base, 'data'); // does not exist yet, under a secure base
     expect(fs.existsSync(dir)).toBe(false);
     new DailyLog(dir, 'ups');
     expect(fs.existsSync(dir)).toBe(false); // constructor leaves no folder behind
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true });
   });
 
   test('creates the storage directory on first append', () => {
-    const dir = path.join(os.tmpdir(), `new-dir2-${Date.now()}`);
-    const log = new DailyLog(dir, 'ups');
+    const base = tmpDir();
+    const dir  = path.join(base, 'data');
+    const log  = new DailyLog(dir, 'ups');
     expect(fs.existsSync(dir)).toBe(false);
     log.append({ t: new Date().toISOString(), inV: 230, outV: 229, load: 10 });
     expect(fs.existsSync(dir)).toBe(true);
-    fs.rmSync(dir, { recursive: true });
+    fs.rmSync(base, { recursive: true });
   });
 
   test('does not throw when directory already exists', () => {
@@ -203,11 +205,12 @@ describe('DailyLog — pruning', () => {
 
 describe('DailyLog — resilience', () => {
   test('continues working after append even if storageDir is nested and new', () => {
-    const dir = path.join(os.tmpdir(), `nested-${Date.now()}`, 'sub', 'dir');
-    const log = new DailyLog(dir, 'ups');
+    const base = tmpDir();
+    const dir  = path.join(base, 'sub', 'dir'); // nested + new, under a secure base
+    const log  = new DailyLog(dir, 'ups');
     expect(() => log.append(makePoint(todayStr()))).not.toThrow();
     expect(log).toBeDefined();
-    fs.rmSync(path.join(os.tmpdir(), `nested-${Date.now() - 1}`), { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true, force: true });
   });
 });
 
