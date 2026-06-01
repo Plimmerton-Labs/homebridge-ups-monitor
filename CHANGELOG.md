@@ -1,6 +1,6 @@
-## [1.4.3](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.2-beta.157...v1.4.3) (2026-06-01)
+## [1.4.4](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.3-beta.162...v1.4.4) (2026-06-01)
 
-## [1.4.2-beta.157](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.1-beta.154...v1.4.2-beta.157) (2026-05-31)
+## [1.4.3-beta.162](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.2-beta.157...v1.4.3-beta.162) (2026-05-31)
 
 ### Features
 
