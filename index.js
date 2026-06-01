@@ -23,7 +23,7 @@ const { parseStatusFlags } = require('./lib/nutParser');
 const RingBuffer           = require('./lib/ringBuffer');
 const DailyLog             = require('./lib/dailyLog');
 const DashboardServer      = require('./lib/dashboardServer');
-const { resolveDataDir, migrateLegacyFiles } = require('./lib/storagePaths');
+const { resolveDataDir, migrateLegacyFiles, migrateLegacyLocations } = require('./lib/storagePaths');
 
 const path = require('path');
 const os   = require('os');
@@ -87,7 +87,11 @@ class NUTDashboardPlatform {
     // Keep data files in a dedicated subdirectory of the storage path
     // (tidier than the storage root). Migrate any legacy root files once.
     this.dataDir = resolveDataDir(this.storagePath);
+    // Migrate files left in the storage root by older versions...
     migrateLegacyFiles(this.storagePath, this.dataDir, this.log);
+    // ...and reclaim any left behind in a previous storage location (e.g. the
+    // old ~/.homebridge / UIX_STORAGE_PATH fallback) so history survives upgrades.
+    migrateLegacyLocations(this.dataDir, this.log);
 
     // Map of upsName → RingBuffer instance (one file per UPS)
     this.ringBuffers = new Map();
