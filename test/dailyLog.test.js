@@ -35,10 +35,19 @@ function makePoint(dateStr, inV = 230, outV = 229, load = 20) {
 // ── Construction ──────────────────────────────────────────────────────────────
 
 describe('DailyLog — construction', () => {
-  test('creates the storage directory if it does not exist', () => {
+  test('does not create the storage directory eagerly (created lazily on first append)', () => {
     const dir = path.join(os.tmpdir(), `new-dir-${Date.now()}`);
     expect(fs.existsSync(dir)).toBe(false);
     new DailyLog(dir, 'ups');
+    expect(fs.existsSync(dir)).toBe(false); // constructor leaves no folder behind
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('creates the storage directory on first append', () => {
+    const dir = path.join(os.tmpdir(), `new-dir2-${Date.now()}`);
+    const log = new DailyLog(dir, 'ups');
+    expect(fs.existsSync(dir)).toBe(false);
+    log.append({ t: new Date().toISOString(), inV: 230, outV: 229, load: 10 });
     expect(fs.existsSync(dir)).toBe(true);
     fs.rmSync(dir, { recursive: true });
   });
