@@ -139,6 +139,28 @@ History is persisted server-side in a ring buffer (about 24 hours at the default
 > **Security note:** The standalone server has no authentication. Only enable it if your home network is trusted or you're comfortable with local network access to your UPS data.
 
 ---
+## UPS Controls (optional)
+
+By default this plugin is **read-only**. Two opt-in controls can write to the UPS — both are **off by default** and require privileged NUT credentials in `upsd.users`:
+
+| Option | Effect | Requires |
+|--------|--------|----------|
+| `alarmControl` | Adds a HomeKit **switch** to enable/disable the UPS audible alarm (beeper) | UPS that advertises `beeper.enable` / `beeper.disable`; `instcmds = ALL` (or the beeper commands) for the user |
+| `syncLowBatteryThreshold` | On startup, writes the configured **Low Battery Threshold** to the UPS (`battery.charge.low`) | UPS where `battery.charge.low` is writable; `actions = SET` for the user |
+
+Example `upsd.users` entry for control:
+
+```
+[admin]
+  password = secret
+  actions = SET
+  instcmds = ALL
+```
+
+If the UPS doesn't advertise the command/variable, or the credentials don't permit control, the plugin logs a warning and skips that control — it never crashes. Many UPSes are monitor-only.
+
+---
+
 ## NUT Variables Used
 
 | NUT Variable | Dashboard | HomeKit |

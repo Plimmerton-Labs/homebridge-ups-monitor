@@ -18,7 +18,7 @@
  * voltage, battery %, load %, and runtime — see homebridge-ui/public/index.html.
  */
 
-const { queryNUT }        = require('./lib/nutClient');
+const { queryNUT, listInstCmds, listRWVars, sendInstCmd, setVar } = require('./lib/nutClient');
 const { parseStatusFlags } = require('./lib/nutParser');
 const RingBuffer           = require('./lib/ringBuffer');
 const DailyLog             = require('./lib/dailyLog');
@@ -35,6 +35,7 @@ const setupLoadTile         = require('./lib/tiles/loadTile');
 const setupInputVoltageTile = require('./lib/tiles/inputVoltageTile');
 const setupOutputVoltageTile= require('./lib/tiles/outputVoltageTile');
 const setupRuntimeTile      = require('./lib/tiles/runtimeTile');
+const setupAlarmTile        = require('./lib/tiles/alarmTile');
 
 const PLUGIN_NAME   = 'homebridge-ups-monitor';
 const PLATFORM_NAME = 'NUTDashboard';
@@ -68,6 +69,10 @@ class NUTDashboardPlatform {
 
     // Low battery threshold
     this.lowBatThreshold = config.lowBatteryThreshold || 20;
+
+    // UPS control features — opt-in (both write to the UPS, so default off)
+    this.alarmControl            = config.alarmControl === true;
+    this.syncLowBatteryThreshold = config.syncLowBatteryThreshold === true;
 
     // Storage path for ring-buffer history files
     // Resolved the same way as server.js so both processes share the same files
@@ -117,6 +122,53 @@ class NUTDashboardPlatform {
     this._dashboardServer.start(port).catch(err => {
       this.log.error(`[UPS Dashboard] Failed to start standalone server: ${err.message}`);
     });
+  }
+
+  // Opt-in UPS control features. Probes the device for support and degrades
+  // gracefully (logs, never throws) when commands/vars aren't available or the
+  // credentials don't permit control. Many UPSes are monitor-only.
+  async _setupControls(accessory, upsName, tiles) {
+    if (this.alarmControl) {
+      try {
+        const cmds = await listInstCmds(this.host, this.port, upsName, this.username, this.password);
+        if (cmds.includes('beeper.disable') || cmds.includes('beeper.enable')) {
+          const alarmTile = setupAlarmTile(accessory, this.api, upsName, {
+            log: this.log,
+            sendCommand: (enable) => sendInstCmd(
+              this.host, this.port, upsName, this.username, this.password,
+              enable ? 'beeper.enable' : 'beeper.disable',
+            ),
+          });
+          tiles.push(alarmTile);
+          this.log.info(`[${upsName}] Alarm control enabled (beeper INSTCMD supported).`);
+        } else {
+          this.log.warn(`[${upsName}] alarmControl is on but the UPS does not advertise beeper commands — skipping alarm switch.`);
+        }
+      } catch (err) {
+        this.log.warn(`[${upsName}] Could not probe alarm support: ${err.message} — skipping alarm switch.`);
+      }
+    }
+
+    if (this.syncLowBatteryThreshold) {
+      try {
+        const rw = await listRWVars(this.host, this.port, upsName, this.username, this.password);
+        if (rw.includes('battery.charge.low')) {
+          const res = await setVar(
+            this.host, this.port, upsName, this.username, this.password,
+            'battery.charge.low', this.lowBatThreshold,
+          );
+          if (res.ok) {
+            this.log.info(`[${upsName}] Synced low-battery threshold to UPS: battery.charge.low=${this.lowBatThreshold}.`);
+          } else {
+            this.log.warn(`[${upsName}] Failed to set battery.charge.low: ${res.message}.`);
+          }
+        } else {
+          this.log.warn(`[${upsName}] syncLowBatteryThreshold is on but battery.charge.low is not writable on this UPS — skipping.`);
+        }
+      } catch (err) {
+        this.log.warn(`[${upsName}] Could not sync low-battery threshold: ${err.message}.`);
+      }
+    }
   }
 
   // Called by Homebridge for every accessory it already knows about
@@ -173,6 +225,10 @@ class NUTDashboardPlatform {
       setupOutputVoltageTile(accessory, this.api, upsName),
       setupRuntimeTile(accessory, this.api, upsName),
     ];
+
+    // Opt-in control features (alarm switch, threshold sync) — set up
+    // asynchronously after a capability probe; never blocks polling.
+    this._setupControls(accessory, upsName, tiles);
 
     const poll = async () => {
       try {
