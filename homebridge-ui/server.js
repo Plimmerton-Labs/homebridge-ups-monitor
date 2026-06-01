@@ -18,6 +18,7 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
 const { queryNUT }  = require('../lib/nutClient');
 const RingBuffer    = require('../lib/ringBuffer');
+const { resolveDataDir } = require('../lib/storagePaths');
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
@@ -101,7 +102,8 @@ class NUTUiServer extends HomebridgePluginUiServer {
         upsName = upsList[0];
       }
 
-      const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
+      const dataDir  = resolveDataDir(storagePath);
+      const histFile = path.join(dataDir, `ups-history-${upsName}.json`);
       const buf      = new RingBuffer(histFile, 1440, { adopt: true });
 
       return {
@@ -132,7 +134,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
       upsName = upsList[0];
     }
 
-    return { storagePath, upsName };
+    return { storagePath, dataDir: resolveDataDir(storagePath), upsName };
   }
 
   /**
@@ -150,9 +152,9 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   async handleExport(body = {}) {
     try {
-      const { storagePath, upsName } = this._resolveContext(body);
+      const { dataDir, upsName } = this._resolveContext(body);
 
-      const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
+      const histFile = path.join(dataDir, `ups-history-${upsName}.json`);
       const buf      = new RingBuffer(histFile, 1440, { adopt: true });
       const points   = buf.read();
 
@@ -196,13 +198,13 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   async handleExport30d(body = {}) {
     try {
-      const { storagePath, upsName } = this._resolveContext(body);
+      const { dataDir, upsName } = this._resolveContext(body);
 
       const prefix = `ups-log-${upsName}-`;
       let logFiles = [];
 
       try {
-        logFiles = fs.readdirSync(storagePath)
+        logFiles = fs.readdirSync(dataDir)
           .filter(f => f.startsWith(prefix) && f.endsWith('.csv'))
           .sort();  // lexicographic = chronological for YYYY-MM-DD filenames
       } catch {
@@ -214,7 +216,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
 
       for (const filename of logFiles) {
         try {
-          const content = fs.readFileSync(path.join(storagePath, filename), 'utf8');
+          const content = fs.readFileSync(path.join(dataDir, filename), 'utf8');
           const lines   = content.split('\n');
           // Skip the header line (first line); collect non-empty data rows
           for (let i = 1; i < lines.length; i++) {
@@ -248,17 +250,17 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   async handleLogs(body = {}) {
     try {
-      const { storagePath, upsName } = this._resolveContext(body);
+      const { dataDir, upsName } = this._resolveContext(body);
 
       const prefix = `ups-log-${upsName}-`;
       let files = [];
 
       try {
-        files = fs.readdirSync(storagePath)
+        files = fs.readdirSync(dataDir)
           .filter(f => f.startsWith(prefix) && f.endsWith('.csv'))
           .map(filename => {
             const date      = filename.slice(prefix.length, -4);
-            const filePath  = path.join(storagePath, filename);
+            const filePath  = path.join(dataDir, filename);
             const sizeBytes = fs.statSync(filePath).size;
             return { filename, date, sizeBytes };
           })
@@ -286,7 +288,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   async handleLogsDownload(body = {}) {
     try {
-      const { storagePath } = this._resolveContext(body);
+      const { dataDir } = this._resolveContext(body);
 
       const filename = body.filename;
       if (!filename) {
@@ -299,7 +301,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
         return { success: false, error: 'Invalid filename' };
       }
 
-      const filePath = path.join(storagePath, filename);
+      const filePath = path.join(dataDir, filename);
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'File not found' };
       }

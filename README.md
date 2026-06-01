@@ -104,7 +104,7 @@ Set a **Standalone Dashboard Port** in the plugin settings, save, and restart Ho
 - Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
 - Auto-refresh every 15 seconds with a countdown indicator
 
-History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) are kept in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
 
 ---
 

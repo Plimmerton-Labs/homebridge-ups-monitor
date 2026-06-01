@@ -23,6 +23,7 @@ const { parseStatusFlags } = require('./lib/nutParser');
 const RingBuffer           = require('./lib/ringBuffer');
 const DailyLog             = require('./lib/dailyLog');
 const DashboardServer      = require('./lib/dashboardServer');
+const { resolveDataDir, migrateLegacyFiles } = require('./lib/storagePaths');
 
 const path = require('path');
 const os   = require('os');
@@ -79,6 +80,11 @@ class NUTDashboardPlatform {
     this.storagePath = process.env.UIX_STORAGE_PATH
       || path.join(os.homedir(), '.homebridge');
 
+    // Keep data files in a dedicated subdirectory of the storage path
+    // (tidier than the storage root). Migrate any legacy root files once.
+    this.dataDir = resolveDataDir(this.storagePath);
+    migrateLegacyFiles(this.storagePath, this.dataDir, this.log);
+
     // Map of upsName → RingBuffer instance (one file per UPS)
     this.ringBuffers = new Map();
 
@@ -111,7 +117,7 @@ class NUTDashboardPlatform {
   // Start the optional standalone dashboard web server on the given (validated) port.
   _startDashboardServer(port) {
     this._dashboardServer = new DashboardServer({
-      storagePath: this.storagePath,
+      storagePath: this.dataDir,
       upsNames:    this.upsList,
       host:        this.host,
       nutPort:     this.port,
@@ -207,12 +213,12 @@ class NUTDashboardPlatform {
     // fast poll intervals don't produce an oversized backing file.
     const pollSec  = Math.max(1, this.pollMs / 1000);
     const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / pollSec)));
-    const histFile = path.join(this.storagePath, `ups-history-${upsName}.json`);
+    const histFile = path.join(this.dataDir, `ups-history-${upsName}.json`);
     const ringBuf  = new RingBuffer(histFile, capacity);
     this.ringBuffers.set(upsName, ringBuf);
 
     // Daily CSV log for this UPS (30 days of per-minute voltage + load data)
-    const dailyLog = new DailyLog(this.storagePath, upsName, 30);
+    const dailyLog = new DailyLog(this.dataDir, upsName, 30);
     this.dailyLogs.set(upsName, dailyLog);
 
     // Initialise all tiles — each returns an update() function

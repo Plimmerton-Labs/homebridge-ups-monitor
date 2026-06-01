@@ -18,6 +18,7 @@ const path = require('path');
 const os   = require('os');
 
 const RingBuffer = require('../lib/ringBuffer');
+const { resolveDataDir } = require('../lib/storagePaths');
 
 // ── Minimal server stand-in ───────────────────────────────────────────────────
 // Pull the handler methods out of server.js without running the full UI
@@ -73,7 +74,7 @@ function makePoint(n) {
 }
 
 function populateRingBuffer(storagePath, upsName, count = 5) {
-  const histFile = path.join(storagePath, `ups-history-${upsName}.json`);
+  const histFile = path.join(resolveDataDir(storagePath), `ups-history-${upsName}.json`);
   const buf      = new RingBuffer(histFile, 1440);
   for (let i = 0; i < count; i++) buf.push(makePoint(i));
   return buf;
@@ -84,7 +85,9 @@ function writeDailyLog(storagePath, upsName, dateStr, lines = 3) {
   const header   = 'timestamp,input_voltage,output_voltage,load_pct\n';
   const rows     = Array.from({ length: lines }, (_, i) =>
     `${dateStr}T0${i}:00:00.000Z,230,229,20`).join('\n') + '\n';
-  fs.writeFileSync(path.join(storagePath, filename), header + rows, 'utf8');
+  const ddir = resolveDataDir(storagePath);
+  fs.mkdirSync(ddir, { recursive: true });
+  fs.writeFileSync(path.join(ddir, filename), header + rows, 'utf8');
   return filename;
 }
 
@@ -136,7 +139,7 @@ describe('handleExport', () => {
   test('runtime is converted to minutes in the CSV', async () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'ups');
-    const histFile = path.join(dir, 'ups-history-ups.json');
+    const histFile = path.join(resolveDataDir(dir), 'ups-history-ups.json');
     const buf = new RingBuffer(histFile, 1440);
     buf.push({ t: new Date().toISOString(), inV: 230, outV: 229, bat: 80, load: 20, runtime: 3600 });
 
