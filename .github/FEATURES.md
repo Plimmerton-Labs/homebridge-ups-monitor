@@ -111,7 +111,7 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 - **Docs** — README reworked to describe the dashboard as standalone-only; added `CHANGELOG.md`.
 - 1 new ring-buffer test; **177 total passing**.
 
-**Status:** open in PR #68 against `develop`.
+**Status:** ✅ merged (#68, #70).
 
 ---
 
@@ -179,3 +179,22 @@ Gaps to close:
 5. **Submit** — open the verification issue on `homebridge/plugins` with the differentiation case above.
 
 **Depends on:** Feature 6 (control parity strengthens the verification case).
+
+---
+
+## Feature 9 — Dependency Hygiene / Socket.dev Alert Triage 🧹 `agent/dependency-hygiene` (backlog)
+
+**Goal:** Resolve or formally triage the Socket.dev dependency alerts so the published package presents a clean supply-chain profile.
+
+**Context:** Alerts are *Dependency Alerts* (the dependency tree), not our own code. The only **runtime** dependency is `@homebridge/plugin-ui-utils`; `jest`, `eslint`, `@eslint/js`, and `conventional-changelog-cli` are **devDependencies** and are **not** included in the npm tarball users install. Most flags (eval, shell access, network, URL strings, dynamic require, filesystem, "unpopular/unmaintained/deprecated") originate in the dev tree.
+
+**Scope:**
+1. **Separate runtime vs dev risk** — confirm which alerts are reachable in the *published* package (runtime deps only). Audit `@homebridge/plugin-ui-utils` and its transitive tree for the flagged behaviors; document that dev-only alerts don't ship.
+2. **Shrink the dev footprint** — `conventional-changelog-cli` pulls a large tree (a likely source of several alerts). Consider removing it from `devDependencies` and invoking it via `npx --yes conventional-changelog-cli@5` only in CI (the bump workflows already do this), so it's not in `package-lock.json`/the dev install at all.
+3. **Identify the Deprecated + Unmaintained packages** — pin, replace, or document; raise upstream if needed.
+4. **Formal triage** — add a Socket config (`socket.yml`) acknowledging accepted dev-only alerts with written justifications, so the dashboard reflects reviewed status rather than open warnings.
+5. **Optional** — add a Socket / `npm audit` gate to CI (an `audit.yml` already exists) to catch new high-severity dependency issues going forward.
+
+**Outcome:** a clean (or fully-triaged) Socket profile and a smaller dependency surface in the shipped package — supports the verification effort (Feature 8) and user trust.
+
+**Depends on:** none (independent hygiene); coordinate with the changelog tooling added for release notes.
