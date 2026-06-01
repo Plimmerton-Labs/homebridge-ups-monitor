@@ -3,6 +3,8 @@
 const js = require('@eslint/js');
 
 module.exports = [
+  // Vendored third-party assets — not linted
+  { ignores: ['node_modules/**', 'coverage/**', 'homebridge-ui/public/vendor/**'] },
   js.configs.recommended,
   {
     // Source files

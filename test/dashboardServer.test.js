@@ -113,6 +113,12 @@ describe('DashboardServer', () => {
     expect(body).toMatch(/<html/i);
   });
 
+  test('GET /vendor/chart.umd.min.js serves the vendored Chart.js bundle', async () => {
+    const { status, body } = await get(port, '/vendor/chart.umd.min.js');
+    expect(status).toBe(200);
+    expect(body).toMatch(/Chart\.js v4/);
+  });
+
   // ── Unknown routes ─────────────────────────────────────────────────────────
 
   test('POST /unknown returns 404', async () => {
