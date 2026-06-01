@@ -392,6 +392,24 @@ describe('NUTDashboardPlatform — HomeKit tile services (Feature 1)', () => {
     });
   });
 
+  describe('storage path resolution', () => {
+    test('prefers api.user.storagePath() when available', () => {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi();
+      api.user = { storagePath: () => '/custom/hb-storage' };
+      const platform = new NUTDashboardPlatform(makeMockLog(), { ups: 'ups' }, api);
+      expect(platform.storagePath).toBe('/custom/hb-storage');
+    });
+
+    test('falls back when api.user.storagePath is unavailable', () => {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi(); // no user.storagePath
+      const platform = new NUTDashboardPlatform(makeMockLog(), { ups: 'ups' }, api);
+      expect(typeof platform.storagePath).toBe('string');
+      expect(platform.storagePath.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('standalonePort validation', () => {
     function makePlatform(config) {
       const { NUTDashboardPlatform } = loadPlatform();
