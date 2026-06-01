@@ -2,7 +2,6 @@
 
 [![npm](https://img.shields.io/npm/v/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
 [![npm](https://img.shields.io/npm/dt/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
-[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![CI](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml)
 
 A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
@@ -158,6 +157,21 @@ Example `upsd.users` entry for control:
 ```
 
 If the UPS doesn't advertise the command/variable, or the credentials don't permit control, the plugin logs a warning and skips that control — it never crashes. Many UPSes are monitor-only.
+
+---
+
+## Relationship to `homebridge-ups`
+
+This plugin complements [`homebridge-ups`](https://github.com/ebaauw/homebridge-ups) rather than replacing it. `homebridge-ups` focuses on exposing and **controlling** the UPS inside Apple Home (status, battery, alarm/threshold control, Eve-app history).
+
+`homebridge-ups-monitor` adds an **observability & data-portability** layer that lives outside Apple Home:
+
+- a **standalone web dashboard** reachable from any browser on your network (phone, tablet, desktop) — no Home app or Eve required;
+- **history charts** (1h / 6h / 12h / 24h) backed by a server-side ring buffer;
+- **CSV / log export** (24h and 30-day daily logs) for spreadsheets and long-term analysis;
+- broad **HomeKit tiles** plus optional UPS controls (beeper, low-battery threshold).
+
+If you primarily want in-Home UPS control, `homebridge-ups` is an excellent choice; if you want a cross-platform dashboard and exportable history, use this plugin (the two can run side by side).
 
 ---
 

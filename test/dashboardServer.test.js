@@ -105,6 +105,13 @@ describe('DashboardServer', () => {
     await expect(server.stop()).resolves.toBeUndefined();
   });
 
+  test('a post-startup server error is logged, not thrown', () => {
+    // Simulate a runtime server error after a successful listen.
+    expect(() => server._server.emit('error', new Error('boom'))).not.toThrow();
+    expect(server.log ? server.log.error : true).toBeTruthy();
+    expect(server._log.error).toHaveBeenCalledWith(expect.stringContaining('boom'));
+  });
+
   // ── GET / ─────────────────────────────────────────────────────────────────
 
   test('GET / returns 200 with HTML content-type', async () => {
