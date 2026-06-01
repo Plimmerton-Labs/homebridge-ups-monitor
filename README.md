@@ -135,6 +135,8 @@ You'll see:
 
 History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
 
+> **Storage location & upgrades:** the storage directory is resolved from the path Homebridge reports (`api.user.storagePath()`), so data is always kept inside your active Homebridge storage folder — including custom `-U` setups. Earlier versions could fall back to `~/.homebridge`; on first launch after upgrading, the plugin automatically moves any history/CSV files left in those previous locations into the current `homebridge-ups-monitor/` folder, so your history carries over. The migration is best-effort and non-destructive — if nothing is found, or files can't be moved, it logs a note and continues.
+
 It can be added to a phone or tablet home screen (it ships a web-app manifest and icons). **To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
 
 > **Security note:** The standalone server has no authentication. Only enable it if your home network is trusted or you're comfortable with local network access to your UPS data.
