@@ -1,4 +1,4 @@
-## [1.7.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.7.0...v1.7.1) (2026-06-01)
+## [1.8.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.7.1-beta.211...v1.8.0) (2026-06-01)
 
 ### Features
 
@@ -8,7 +8,7 @@
 
 * resolve storage path via api.user.storagePath() ([8525d4a](https://github.com/GodIsI/homebridge-ups-monitor/commit/8525d4aedd0163dfe493589c6bded90fc5a9a341))
 
-## [1.7.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.6.1-beta.203...v1.7.0) (2026-06-01)
+## [1.7.1-beta.211](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.7.0...v1.7.1-beta.211) (2026-06-01)
 
 ### Bug Fixes
 
