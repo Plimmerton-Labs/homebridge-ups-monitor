@@ -1,6 +1,10 @@
-## [1.4.5](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.4-beta.169...v1.4.5) (2026-06-01)
+## [1.4.6](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.5-beta.173...v1.4.6) (2026-06-01)
 
-## [1.4.4-beta.169](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.3-beta.162...v1.4.4-beta.169) (2026-05-31)
+### Features
+
+* NUT control commands — audible-alarm switch + low-battery threshold sync (opt-in) ([aef88fe](https://github.com/GodIsI/homebridge-ups-monitor/commit/aef88fe9fe3e5c989503e13c8bdb87235b05f0a3))
+
+## [1.4.5-beta.173](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.4.4-beta.169...v1.4.5-beta.173) (2026-05-31)
 
 ### Features
 
