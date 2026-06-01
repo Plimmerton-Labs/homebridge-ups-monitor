@@ -75,9 +75,13 @@ class NUTDashboardPlatform {
     this.alarmControl            = config.alarmControl === true;
     this.syncLowBatteryThreshold = config.syncLowBatteryThreshold === true;
 
-    // Storage path for ring-buffer history files
-    // Resolved the same way as server.js so both processes share the same files
-    this.storagePath = process.env.UIX_STORAGE_PATH
+    // Storage path for ring-buffer history files.
+    // Prefer the path Homebridge gives us via the API (honours custom -U dirs);
+    // fall back to UIX_STORAGE_PATH / ~/.homebridge for older cores or tests.
+    this.storagePath = (this.api && this.api.user && typeof this.api.user.storagePath === 'function'
+      ? this.api.user.storagePath()
+      : null)
+      || process.env.UIX_STORAGE_PATH
       || path.join(os.homedir(), '.homebridge');
 
     // Keep data files in a dedicated subdirectory of the storage path
