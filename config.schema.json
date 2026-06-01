@@ -11,8 +11,7 @@
       "name": {
         "title": "Platform Name",
         "type": "string",
-        "default": "NUT UPS Dashboard",
-        "required": true
+        "default": "NUT UPS Dashboard"
       },
       "host": {
         "title": "NUT Server Host",
@@ -80,7 +79,10 @@
         "default": false,
         "description": "On startup, push the Low Battery Threshold above to the UPS (NUT 'battery.charge.low') where the device allows it. Requires upsd.users credentials with 'actions = SET'. Writes to the UPS."
       }
-    }
+    },
+    "required": [
+      "name"
+    ]
   },
   "layout": [
     {
