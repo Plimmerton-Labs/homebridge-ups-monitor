@@ -1,3 +1,5 @@
+<p align="center"><img src="homebridge-ui/public/icons/icon-192.png" width="120" alt="UPS Monitor" /></p>
+
 # homebridge-ups-monitor
 
 [![npm](https://img.shields.io/npm/v/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
@@ -19,6 +21,20 @@ Built for Raspberry Pi setups running NUT alongside Homebridge — works great a
 - Supports **multiple UPS units** on the same NUT server
 - Configurable **poll interval** and **low battery threshold**
 - History charts with selectable **1h / 6h / 12h / 24h** ranges, backed by a persistent ~24h server-side ring buffer
+
+---
+
+## Screenshots
+
+**Standalone dashboard** — live cards + selectable 1h / 6h / 12h / 24h history charts and CSV export, in any browser:
+
+![UPS standalone dashboard](docs/images/dashboard.png)
+
+| HomeKit tiles (Apple Home) | Plugin settings |
+|---|---|
+| ![HomeKit tiles](docs/images/homekit-tiles.png) | ![Plugin settings](docs/images/settings.png) |
+
+The dashboard works from any device on your network and can be added to a phone or tablet home screen. In Apple Home, each UPS metric appears as a native tile (battery, outlet, on-battery, load, input/output voltage, runtime, and optional alarm).
 
 ---
 
@@ -96,27 +112,13 @@ Add the platform to your Homebridge `config.json`, or use the **Settings** panel
 
 ## Dashboard
 
-Set a **Standalone Dashboard Port** in the plugin settings, save, and restart Homebridge. Then open the dashboard at `http://homebridge.local:PORT` or `http://localhost:PORT` (replace `PORT` with the value you set) — it works from any browser on your network. You'll see:
-
-- Status banner (Online / On Battery / Low Battery) with UPS model name
-- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
-- Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
-- Auto-refresh every 15 seconds with a countdown indicator
-
-History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) are kept in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
-
----
-
-
-## Standalone Dashboard
-
-By default the dashboard is only accessible through the Homebridge UI. If you want to open it from a phone, tablet, or any browser on your local network **without needing Homebridge open**, enable the standalone server by setting `standalonePort` in your config:
+The dashboard runs as a **standalone web server** — set a **Standalone Dashboard Port** (`standalonePort`) in the plugin settings, save, and restart Homebridge:
 
 ```json
 "standalonePort": 4080
 ```
 
-Once Homebridge restarts, the dashboard is available from any device on your network — phone, tablet, or desktop:
+Once Homebridge restarts, open it from any device on your network — phone, tablet, or desktop:
 
 | URL | Use case |
 |-----|----------|
@@ -131,13 +133,14 @@ You'll see:
 - Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
 - Auto-refresh every 15 seconds with a countdown indicator
 
-History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts.
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
 
-**To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
+It can be added to a phone or tablet home screen (it ships a web-app manifest and icons). **To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
 
 > **Security note:** The standalone server has no authentication. Only enable it if your home network is trusted or you're comfortable with local network access to your UPS data.
 
 ---
+
 ## UPS Controls (optional)
 
 By default this plugin is **read-only**. Two opt-in controls can write to the UPS — both are **off by default** and require privileged NUT credentials in `upsd.users`:
