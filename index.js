@@ -91,7 +91,7 @@ class NUTDashboardPlatform {
     migrateLegacyFiles(this.storagePath, this.dataDir, this.log);
     // ...and reclaim any left behind in a previous storage location (e.g. the
     // old ~/.homebridge / UIX_STORAGE_PATH fallback) so history survives upgrades.
-    migrateLegacyLocations(this.dataDir, this.log);
+    migrateLegacyLocations(this.dataDir, this.storagePath, this.log);
 
     // Map of upsName → RingBuffer instance (one file per UPS)
     this.ringBuffers = new Map();
