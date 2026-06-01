@@ -198,3 +198,23 @@ Gaps to close:
 **Outcome:** a clean (or fully-triaged) Socket profile and a smaller dependency surface in the shipped package — supports the verification effort (Feature 8) and user trust.
 
 **Depends on:** none (independent hygiene); coordinate with the changelog tooling added for release notes.
+
+---
+
+## Feature 10 — Tidy Data File Storage 🗂️ `agent/data-subdir`
+
+**Goal:** Stop scattering data files across the Homebridge storage root. Keep them, but inside a dedicated subdirectory of the storage path.
+
+**Context:** The plugin currently writes `ups-history-<ups>.json` and `ups-log-<ups>-YYYY-MM-DD.csv` directly into `<storage>/` (e.g. `/var/lib/homebridge/`), cluttering it alongside `config.json`, `accessories/`, etc. This is verification-compliant (files live in the storage dir, never in `node_modules`, which is wiped on update) but untidy.
+
+**Scope:**
+1. **Dedicated subdirectory** — write all plugin data under `<storage>/homebridge-ups-monitor/` (created on startup). Update the path resolution in `index.js`, `lib/ringBuffer.js`, `lib/dailyLog.js`, `lib/dashboardServer.js`, and `homebridge-ui/server.js` so the writer and all readers agree.
+2. **One-time migration** — on startup, move any existing `ups-history-*.json` / `ups-log-*.csv` from the storage root into the subdirectory so history/logs aren't lost. Best-effort; log and skip on error.
+3. **Stay in the storage dir** — never write to the package directory; keep resolving the storage path the existing way (`UIX_STORAGE_PATH` → `~/.homebridge`).
+4. **Cleanup (related)** — de-duplicate stale case-variant files (e.g. `ups-history-CyberPower.json` vs `ups-history-cyberpower.json`) created when a UPS name's casing changed. Decide whether to normalize the on-disk key or just document that NUT UPS names are case-sensitive.
+
+**Tests:** path-resolution + migration unit tests (mock storage dir with pre-existing root files → assert they move into the subdir and are still read).
+
+**Outcome:** a clean storage root and a self-contained data folder — easier to back up, inspect, and reason about; supports the verification/tidiness goals.
+
+**Depends on:** none.
