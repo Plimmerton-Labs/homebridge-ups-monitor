@@ -23,7 +23,7 @@ const { parseStatusFlags } = require('./lib/nutParser');
 const RingBuffer           = require('./lib/ringBuffer');
 const DailyLog             = require('./lib/dailyLog');
 const DashboardServer      = require('./lib/dashboardServer');
-const { resolveDataDir, migrateLegacyFiles } = require('./lib/storagePaths');
+const { resolveDataDir, migrateLegacyFiles, migrateLegacyLocations } = require('./lib/storagePaths');
 
 const path = require('path');
 const os   = require('os');
@@ -75,15 +75,23 @@ class NUTDashboardPlatform {
     this.alarmControl            = config.alarmControl === true;
     this.syncLowBatteryThreshold = config.syncLowBatteryThreshold === true;
 
-    // Storage path for ring-buffer history files
-    // Resolved the same way as server.js so both processes share the same files
-    this.storagePath = process.env.UIX_STORAGE_PATH
+    // Storage path for ring-buffer history files.
+    // Prefer the path Homebridge gives us via the API (honours custom -U dirs);
+    // fall back to UIX_STORAGE_PATH / ~/.homebridge for older cores or tests.
+    this.storagePath = (this.api && this.api.user && typeof this.api.user.storagePath === 'function'
+      ? this.api.user.storagePath()
+      : null)
+      || process.env.UIX_STORAGE_PATH
       || path.join(os.homedir(), '.homebridge');
 
     // Keep data files in a dedicated subdirectory of the storage path
     // (tidier than the storage root). Migrate any legacy root files once.
     this.dataDir = resolveDataDir(this.storagePath);
+    // Migrate files left in the storage root by older versions...
     migrateLegacyFiles(this.storagePath, this.dataDir, this.log);
+    // ...and reclaim any left behind in a previous storage location (e.g. the
+    // old ~/.homebridge / UIX_STORAGE_PATH fallback) so history survives upgrades.
+    migrateLegacyLocations(this.dataDir, this.log);
 
     // Map of upsName → RingBuffer instance (one file per UPS)
     this.ringBuffers = new Map();
