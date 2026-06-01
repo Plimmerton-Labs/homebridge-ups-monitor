@@ -67,7 +67,7 @@ describe('migrateLegacyLocations', () => {
 
     const newRoot = tmpDir();
     const newData = resolveDataDir(newRoot);
-    const moved = migrateLegacyLocations(newData, null);
+    const moved = migrateLegacyLocations(newData, newRoot, null);
 
     expect(moved).toBeGreaterThanOrEqual(1);
     expect(fs.existsSync(path.join(newData, 'ups-history-reclaim1.json'))).toBe(true);
@@ -89,7 +89,7 @@ describe('migrateLegacyLocations', () => {
     fs.mkdirSync(newData, { recursive: true });
     fs.writeFileSync(path.join(newData, 'ups-history-reclaim2.json'), 'current', 'utf8');
 
-    migrateLegacyLocations(newData, null);
+    migrateLegacyLocations(newData, newRoot, null);
     expect(fs.readFileSync(path.join(newData, 'ups-history-reclaim2.json'), 'utf8')).toBe('current');
     expect(fs.existsSync(path.join(oldData, 'ups-history-reclaim2.json'))).toBe(false); // stale dropped
     fs.rmSync(oldRoot, { recursive: true });
@@ -99,7 +99,42 @@ describe('migrateLegacyLocations', () => {
   test('is a no-op and does not throw when no legacy locations exist', () => {
     delete process.env.UIX_STORAGE_PATH;
     const newRoot = tmpDir();
-    expect(() => migrateLegacyLocations(resolveDataDir(newRoot), null)).not.toThrow();
+    expect(() => migrateLegacyLocations(resolveDataDir(newRoot), newRoot, null)).not.toThrow();
+    fs.rmSync(newRoot, { recursive: true });
+  });
+});
+
+describe('migration safety', () => {
+  const ORIG_ENV = process.env.UIX_STORAGE_PATH;
+  afterEach(() => {
+    if (ORIG_ENV === undefined) delete process.env.UIX_STORAGE_PATH;
+    else process.env.UIX_STORAGE_PATH = ORIG_ENV;
+  });
+
+  test('migrateLegacyFiles creates no data dir when there is nothing to move', () => {
+    const root = tmpDir();
+    const dataDir = resolveDataDir(root);
+    const moved = migrateLegacyFiles(root, dataDir, null);
+    expect(moved).toBe(0);
+    expect(fs.existsSync(dataDir)).toBe(false); // no empty dir left behind
+    fs.rmSync(root, { recursive: true });
+  });
+
+  test('does not reclaim from a foreign live instance (dir with its own config.json)', () => {
+    const foreign = tmpDir();
+    const foreignData = resolveDataDir(foreign);
+    fs.mkdirSync(foreignData, { recursive: true });
+    fs.writeFileSync(path.join(foreign, 'config.json'), '{}', 'utf8'); // marks a live instance
+    fs.writeFileSync(path.join(foreignData, 'ups-history-foreign.json'), 'theirs', 'utf8');
+    process.env.UIX_STORAGE_PATH = foreign;
+
+    const newRoot = tmpDir();
+    const newData = resolveDataDir(newRoot);
+    const moved = migrateLegacyLocations(newData, newRoot, null);
+
+    expect(moved).toBe(0);
+    expect(fs.existsSync(path.join(foreignData, 'ups-history-foreign.json'))).toBe(true); // untouched
+    fs.rmSync(foreign, { recursive: true });
     fs.rmSync(newRoot, { recursive: true });
   });
 });

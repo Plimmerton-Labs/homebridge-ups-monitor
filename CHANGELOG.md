@@ -1,3 +1,9 @@
+## [1.8.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.8.0...v1.8.1) (2026-06-01)
+
+### Bug Fixes
+
+* make storage writes lazy and migration safe across instances ([7ac8c27](https://github.com/GodIsI/homebridge-ups-monitor/commit/7ac8c2755e3154527a0c9b2337cc22b245635eb0))
+
 ## [1.8.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.7.1-beta.211...v1.8.0) (2026-06-01)
 
 ### Features
