@@ -1,4 +1,4 @@
-## [1.10.7](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.6-beta.252...v1.10.7) (2026-06-04)
+## [1.11.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.7-beta.257...v1.11.0) (2026-06-04)
 
 ### Features
 
@@ -10,7 +10,7 @@
 * **lifecycle:** clean up poll timers and dashboard server on shutdown ([a3d0568](https://github.com/GodIsI/homebridge-ups-monitor/commit/a3d0568805c1e42e648936a05fb1d77e09a87ad7))
 * **poll:** validate interval and prevent overlapping polls ([ef487b7](https://github.com/GodIsI/homebridge-ups-monitor/commit/ef487b79443e9fca362a6995639f192c815f90c6))
 
-## [1.10.6-beta.252](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.5-beta.248...v1.10.6-beta.252) (2026-06-01)
+## [1.10.7-beta.257](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.6-beta.252...v1.10.7-beta.257) (2026-06-01)
 
 ### Bug Fixes
 
