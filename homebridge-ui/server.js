@@ -17,7 +17,7 @@
 
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
 const { queryNUT }  = require('../lib/nutClient');
-const RingBuffer    = require('../lib/ringBuffer');
+const telemetryStore = require('../lib/telemetryStore');
 const { resolveDataDir } = require('../lib/storagePaths');
 const fs   = require('fs');
 const path = require('path');
@@ -89,28 +89,8 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   async handleHistory(body = {}) {
     try {
-      const storagePath = this.homebridgeStoragePath
-        || process.env.UIX_STORAGE_PATH
-        || path.join(os.homedir(), '.homebridge');
-
-      // Resolve upsName — use body param, or fall back to first UPS in config
-      let upsName = body.upsName;
-      if (!upsName) {
-        const raw    = fs.readFileSync(path.join(storagePath, 'config.json'), 'utf8');
-        const cfg    = (JSON.parse(raw).platforms || []).find(p => p.platform === 'NUTDashboard') || {};
-        const upsList = Array.isArray(cfg.ups) ? cfg.ups : [cfg.ups || 'ups'];
-        upsName = upsList[0];
-      }
-
-      const dataDir  = resolveDataDir(storagePath);
-      const histFile = path.join(dataDir, `ups-history-${upsName}.json`);
-      const buf      = new RingBuffer(histFile, 1440, { adopt: true });
-
-      return {
-        success: true,
-        upsName,
-        points: buf.read(),
-      };
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, points: telemetryStore.readHistory(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -153,30 +133,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
   async handleExport(body = {}) {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
-
-      const histFile = path.join(dataDir, `ups-history-${upsName}.json`);
-      const buf      = new RingBuffer(histFile, 1440, { adopt: true });
-      const points   = buf.read();
-
-      const header = 'timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min\n';
-      const rows   = points.map(p => [
-        p.t       ?? '',
-        p.inV     ?? '',
-        p.outV    ?? '',
-        p.bat     ?? '',
-        p.load    ?? '',
-        p.runtime != null ? (p.runtime / 60).toFixed(2) : '',
-      ].join(',')).join('\n');
-
-      const date     = new Date().toISOString().slice(0, 10);
-      const filename = `ups-${upsName}-${date}.csv`;
-
-      return {
-        success:  true,
-        upsName,
-        filename,
-        csv: header + rows,
-      };
+      return { success: true, upsName, ...telemetryStore.buildHistoryCsv(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -200,50 +157,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
   async handleExport30d(body = {}) {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
-
-      const prefix = `ups-log-${upsName}-`;
-      let logFiles = [];
-
-      try {
-        logFiles = fs.readdirSync(dataDir)
-          .filter(f => f.startsWith(prefix) && f.endsWith('.csv'))
-          .sort();  // lexicographic = chronological for YYYY-MM-DD filenames
-      } catch {
-        // storageDir doesn't exist yet — return header-only CSV
-      }
-
-      // Unified output schema. Daily log files written by older plugin versions
-      // only have 4 columns (no battery_pct / runtime_min); remap every file by
-      // its own header so old and new files aggregate consistently, padding any
-      // missing columns as empty.
-      const COLUMNS  = ['timestamp', 'input_voltage', 'output_voltage', 'battery_pct', 'load_pct', 'runtime_min'];
-      const HEADER   = COLUMNS.join(',');
-      const dataRows = [];
-
-      for (const filename of logFiles) {
-        try {
-          const content = fs.readFileSync(path.join(dataDir, filename), 'utf8');
-          const lines   = content.split('\n');
-          if (!lines.length) continue;
-          const cols    = lines[0].split(',').map(c => c.trim());
-          // Skip the header line (first line); remap non-empty data rows
-          for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            const cells = lines[i].split(',');
-            const byName = {};
-            cols.forEach((name, idx) => { byName[name] = cells[idx] ?? ''; });
-            dataRows.push(COLUMNS.map(name => byName[name] ?? '').join(','));
-          }
-        } catch {
-          // Skip unreadable files — best-effort
-        }
-      }
-
-      const csv      = HEADER + (dataRows.length ? '\n' + dataRows.join('\n') : '');
-      const date     = new Date().toISOString().slice(0, 10);
-      const filename = `ups-${upsName}-30d-${date}.csv`;
-
-      return { success: true, upsName, filename, csv };
+      return { success: true, upsName, ...telemetryStore.build30dCsv(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -263,25 +177,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
   async handleLogs(body = {}) {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
-
-      const prefix = `ups-log-${upsName}-`;
-      let files = [];
-
-      try {
-        files = fs.readdirSync(dataDir)
-          .filter(f => f.startsWith(prefix) && f.endsWith('.csv'))
-          .map(filename => {
-            const date      = filename.slice(prefix.length, -4);
-            const filePath  = path.join(dataDir, filename);
-            const sizeBytes = fs.statSync(filePath).size;
-            return { filename, date, sizeBytes };
-          })
-          .sort((a, b) => b.date.localeCompare(a.date));  // newest first
-      } catch {
-        // storageDir doesn't exist yet — return empty list
-      }
-
-      return { success: true, upsName, files };
+      return { success: true, upsName, files: telemetryStore.listLogs(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -301,25 +197,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
   async handleLogsDownload(body = {}) {
     try {
       const { dataDir } = this._resolveContext(body);
-
-      const filename = body.filename;
-      if (!filename) {
-        return { success: false, error: 'filename is required' };
-      }
-
-      // Safety: only allow the exact pattern we write, no path separators
-      const safe = /^ups-log-[a-zA-Z0-9_-]+-\d{4}-\d{2}-\d{2}\.csv$/.test(filename);
-      if (!safe) {
-        return { success: false, error: 'Invalid filename' };
-      }
-
-      const filePath = path.join(dataDir, filename);
-      if (!fs.existsSync(filePath)) {
-        return { success: false, error: 'File not found' };
-      }
-
-      const csv = fs.readFileSync(filePath, 'utf8');
-      return { success: true, filename, csv };
+      return telemetryStore.readLogFile(dataDir, body.filename);
     } catch (err) {
       return { success: false, error: err.message };
     }
