@@ -443,6 +443,46 @@ describe('NUTDashboardPlatform — HomeKit tile services (Feature 1)', () => {
     });
   });
 
+  describe('shutdown cleanup', () => {
+    function makePlatform(config) {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi();
+      const log = makeMockLog();
+      const platform = new NUTDashboardPlatform(log, { host: '127.0.0.1', ups: 'ups', ...config }, api);
+      return { platform, api, log };
+    }
+
+    test('registers a shutdown handler', () => {
+      const { api } = makePlatform({});
+      expect(api.on).toHaveBeenCalledWith('shutdown', expect.any(Function));
+    });
+
+    test('clears pending poll timers', () => {
+      const { platform } = makePlatform({});
+      const clearSpy = jest.spyOn(global, 'clearTimeout');
+      platform._pollTimers.set('ups', 1);
+      platform._pollTimers.set('ups2', 2);
+      platform._shutdown();
+      expect(clearSpy).toHaveBeenCalledTimes(2);
+      expect(platform._pollTimers.size).toBe(0);
+    });
+
+    test('stops the standalone dashboard server when running', () => {
+      const { platform } = makePlatform({ standalonePort: 8581 });
+      const server = platform._dashboardServer;
+      expect(server).not.toBeNull();
+      platform._shutdown();
+      expect(server.stop).toHaveBeenCalled();
+      expect(platform._dashboardServer).toBeNull();
+    });
+
+    test('is a no-op when no dashboard server is running', () => {
+      const { platform } = makePlatform({});
+      expect(platform._dashboardServer).toBeNull();
+      expect(() => platform._shutdown()).not.toThrow();
+    });
+  });
+
   describe('pollInterval validation', () => {
     function makePlatform(config) {
       const { NUTDashboardPlatform } = loadPlatform();

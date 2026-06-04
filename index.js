@@ -127,6 +127,7 @@ class NUTDashboardPlatform {
     }
 
     this.api.on('didFinishLaunching', () => this.initAccessories());
+    this.api.on('shutdown', () => this._shutdown());
   }
 
   // Start the optional standalone dashboard web server on the given (validated) port.
@@ -203,6 +204,21 @@ class NUTDashboardPlatform {
       `Invalid pollInterval "${raw}" — must be a number >= 1 (seconds). Falling back to 30s.`
     );
     return 30;
+  }
+
+  // Clean up on Homebridge shutdown: cancel pending poll timers and stop the
+  // standalone dashboard server, so a dynamic-platform reload does not leak
+  // timers or a listening socket.
+  _shutdown() {
+    for (const timer of this._pollTimers.values()) {
+      clearTimeout(timer);
+    }
+    this._pollTimers.clear();
+
+    if (this._dashboardServer) {
+      Promise.resolve(this._dashboardServer.stop()).catch(() => { /* best-effort */ });
+      this._dashboardServer = null;
+    }
   }
 
   // Called by Homebridge for every accessory it already knows about
