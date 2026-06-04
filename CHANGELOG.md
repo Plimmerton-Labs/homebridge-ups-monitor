@@ -1,10 +1,14 @@
-## [1.10.3](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.2-beta.235...v1.10.3) (2026-06-04)
+## [1.10.4](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.3-beta.240...v1.10.4) (2026-06-04)
+
+### Features
+
+* **export:** add battery % and runtime to 30-day CSV ([0f56fff](https://github.com/GodIsI/homebridge-ups-monitor/commit/0f56fff0e88826ee3c8c9db0c01fa341ff336888))
 
 ### Bug Fixes
 
 * **dashboard:** draw real voltage instead of smoothing it away ([1249469](https://github.com/GodIsI/homebridge-ups-monitor/commit/1249469f9bf1f09e1403b5e4334d334b2795a987))
 
-## [1.10.2-beta.235](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.1-beta.231...v1.10.2-beta.235) (2026-06-01)
+## [1.10.3-beta.240](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.2-beta.235...v1.10.3-beta.240) (2026-06-01)
 
 ### Bug Fixes
 
