@@ -6,18 +6,18 @@
 [![npm](https://img.shields.io/npm/dt/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
 [![CI](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml)
 
-A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT — Network UPS Tools](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
+A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT (Network UPS Tools)](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
 
-Built for Raspberry Pi setups running NUT alongside Homebridge — works great alongside solar/battery monitoring projects.
+Built for Raspberry Pi setups running NUT alongside Homebridge, and pairs well with solar/battery monitoring projects.
 
 ---
 
 ## Features
 
-- **Standalone web dashboard** — input/output voltage, battery %, load %, runtime remaining, battery voltage, and history charts, served as a local website you can open from any browser on your network
-- **HomeKit Battery service** — battery level, charging state, and Low Battery alerts usable in automations
-- **HomeKit Outlet service** — shows whether the UPS is supplying power; load > 0 marks it as in use
-- Connects over the native **NUT TCP protocol** (port 3493) — no extra agents needed, just `upsd` running on your Pi
+- **Standalone web dashboard**: input/output voltage, battery %, load %, runtime remaining, battery voltage, and history charts, served as a local website you can open from any browser on your network
+- **HomeKit Battery service**: battery level, charging state, and Low Battery alerts usable in automations
+- **HomeKit Outlet service**: shows whether the UPS is supplying power; load > 0 marks it as in use
+- Connects over the native **NUT TCP protocol** (port 3493), with no extra agents needed, just `upsd` running on your Pi
 - Supports **multiple UPS units** on the same NUT server
 - Configurable **poll interval** and **low battery threshold**
 - History charts with selectable **1h / 6h / 12h / 24h** ranges, backed by a persistent ~24h server-side ring buffer
@@ -26,7 +26,7 @@ Built for Raspberry Pi setups running NUT alongside Homebridge — works great a
 
 ## Screenshots
 
-**Standalone dashboard** — live cards + selectable 1h / 6h / 12h / 24h history charts and CSV export, in any browser:
+**Standalone dashboard**: live cards + selectable 1h / 6h / 12h / 24h history charts and CSV export, in any browser:
 
 ![UPS standalone dashboard](docs/images/dashboard.png)
 
@@ -42,7 +42,7 @@ The dashboard works from any device on your network and can be added to a phone 
 
 - [Homebridge](https://homebridge.io) ≥ 1.6.0
 - Node.js ≥ 18
-- A running NUT server (`upsd`) accessible over TCP — typically on the same Pi as Homebridge
+- A running NUT server (`upsd`) accessible over TCP, typically on the same Pi as Homebridge
 
 Verify NUT is reachable before installing:
 
@@ -101,30 +101,30 @@ Add the platform to your Homebridge `config.json`, or use the **Settings** panel
 |-----|---------|-------------|
 | `host` | `127.0.0.1` | Hostname or IP of the machine running `upsd`. Use `127.0.0.1` if NUT is on the same Pi as Homebridge. |
 | `port` | `3493` | TCP port `upsd` listens on. |
-| `username` | _(none)_ | NUT username — leave blank if your `upsd.conf` does not require auth. |
+| `username` | _(none)_ | NUT username; leave blank if your `upsd.conf` does not require auth. |
 | `password` | _(none)_ | NUT password. |
 | `ups` | `["ups"]` | Array of UPS names as shown by `upsc -l`. Usually just `["ups"]`. |
 | `pollInterval` | `30` | Seconds between NUT queries for HomeKit updates. |
 | `lowBatteryThreshold` | `20` | Battery % below which the HomeKit Low Battery alert fires. |
-| `standalonePort` | _(disabled)_ | Port for the standalone dashboard web server (1–65535). When set, the dashboard is served at `http://homebridge.local:PORT` and accessible from any browser on your network — no Homebridge UI required. Leave blank to disable. |
+| `standalonePort` | _(disabled)_ | Port for the standalone dashboard web server (1–65535). When set, the dashboard is served at `http://homebridge.local:PORT` and accessible from any browser on your network, with no Homebridge UI required. Leave blank to disable. |
 
 ---
 
 ## Dashboard
 
-The dashboard runs as a **standalone web server** — set a **Standalone Dashboard Port** (`standalonePort`) in the plugin settings, save, and restart Homebridge:
+The dashboard runs as a **standalone web server**: set a **Standalone Dashboard Port** (`standalonePort`) in the plugin settings, save, and restart Homebridge:
 
 ```json
 "standalonePort": 4080
 ```
 
-Once Homebridge restarts, open it from any device on your network — phone, tablet, or desktop:
+Once Homebridge restarts, open it from any device on your network (phone, tablet, or desktop):
 
 | URL | Use case |
 |-----|----------|
 | `http://homebridge.local:4080` | From any device on your local network (mDNS name) |
 | `http://localhost:4080` | From the Pi itself |
-| `http://<pi-ip>:4080` | If mDNS isn't working — replace with your Pi's IP address |
+| `http://<pi-ip>:4080` | If mDNS isn't working, replace with your Pi's IP address |
 
 You'll see:
 
@@ -135,7 +135,7 @@ You'll see:
 
 History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
 
-> **Storage location & upgrades:** the storage directory is resolved from the path Homebridge reports (`api.user.storagePath()`), so data is always kept inside your active Homebridge storage folder — including custom `-U` setups. Earlier versions could fall back to `~/.homebridge`; on first launch after upgrading, the plugin automatically moves any history/CSV files left in those previous locations into the current `homebridge-ups-monitor/` folder, so your history carries over. The migration is best-effort and non-destructive — if nothing is found, or files can't be moved, it logs a note and continues.
+> **Storage location & upgrades:** the storage directory is resolved from the path Homebridge reports (`api.user.storagePath()`), so data is always kept inside your active Homebridge storage folder, including custom `-U` setups. Earlier versions could fall back to `~/.homebridge`; on first launch after upgrading, the plugin automatically moves any history/CSV files left in those previous locations into the current `homebridge-ups-monitor/` folder, so your history carries over. The migration is best-effort and non-destructive: if nothing is found, or files can't be moved, it logs a note and continues.
 
 It can be added to a phone or tablet home screen (it ships a web-app manifest and icons). **To disable**, remove `standalonePort` from your config (or leave it blank) and restart Homebridge.
 
@@ -145,7 +145,7 @@ It can be added to a phone or tablet home screen (it ships a web-app manifest an
 
 ## UPS Controls (optional)
 
-By default this plugin is **read-only**. Two opt-in controls can write to the UPS — both are **off by default** and require privileged NUT credentials in `upsd.users`:
+By default this plugin is **read-only**. Two opt-in controls can write to the UPS, and both are **off by default** and require privileged NUT credentials in `upsd.users`:
 
 | Option | Effect | Requires |
 |--------|--------|----------|
@@ -161,7 +161,7 @@ Example `upsd.users` entry for control:
   instcmds = ALL
 ```
 
-If the UPS doesn't advertise the command/variable, or the credentials don't permit control, the plugin logs a warning and skips that control — it never crashes. Many UPSes are monitor-only.
+If the UPS doesn't advertise the command/variable, or the credentials don't permit control, the plugin logs a warning and skips that control; it never crashes. Many UPSes are monitor-only.
 
 ---
 
@@ -171,7 +171,7 @@ This plugin complements [`homebridge-ups`](https://github.com/ebaauw/homebridge-
 
 `homebridge-ups-monitor` adds an **observability & data-portability** layer that lives outside Apple Home:
 
-- a **standalone web dashboard** reachable from any browser on your network (phone, tablet, desktop) — no Home app or Eve required;
+- a **standalone web dashboard** reachable from any browser on your network (phone, tablet, desktop), with no Home app or Eve required;
 - **history charts** (1h / 6h / 12h / 24h) backed by a server-side ring buffer;
 - **CSV / log export** (24h and 30-day daily logs) for spreadsheets and long-term analysis;
 - broad **HomeKit tiles** plus optional UPS controls (beeper, low-battery threshold).
@@ -198,14 +198,14 @@ If you primarily want in-Home UPS control, `homebridge-ups` is an excellent choi
 
 ## HomeKit Tiles
 
-The plugin maps UPS metrics to HomeKit services. Because HomeKit's sensor types have fixed value ranges, some metrics use non-obvious service types — the table below explains the reasoning.
+The plugin maps UPS metrics to HomeKit services. Because HomeKit's sensor types have fixed value ranges, some metrics use non-obvious service types; the table below explains the reasoning.
 
 | What you see in Home | HomeKit Service | NUT Variable | Notes |
 |---|---|---|---|
 | **On Battery** | `OccupancySensor` | `ups.status` | Occupancy Detected = on battery. Use this in automations to trigger alerts or shutdown scripts on power failure. |
 | **Battery Level** | `BatteryService` | `battery.charge` | Native battery % + Low Battery alert fires below your configured threshold |
 | **Load %** | `Lightbulb` (Brightness) | `ups.load` | 0–100 % maps naturally to brightness; bulb On = load > 0 |
-| **Input Voltage** | `LightSensor` | `input.voltage` | `CurrentAmbientLightLevel` spans 0.0001–100,000 lux — wide enough for any AC voltage (120 V or 230 V) without clipping. `CurrentTemperature` caps at 100 °C so would clip mains voltage. |
+| **Input Voltage** | `LightSensor` | `input.voltage` | `CurrentAmbientLightLevel` spans 0.0001–100,000 lux, wide enough for any AC voltage (120 V or 230 V) without clipping. `CurrentTemperature` caps at 100 °C so would clip mains voltage. |
 | **Output Voltage** | `LightSensor` | `output.voltage` | Same reason as input voltage |
 | **Runtime Remaining** | `TemperatureSensor` | `battery.runtime ÷ 60` | Runtime reported in minutes (÷ 60). `CurrentTemperature` range 0–100 °C maps well to typical UPS runtimes of 0–100 min. Reported as a float, unlike humidity which is integer-only. |
 

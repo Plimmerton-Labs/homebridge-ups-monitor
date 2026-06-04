@@ -82,9 +82,9 @@ function populateRingBuffer(storagePath, upsName, count = 5) {
 
 function writeDailyLog(storagePath, upsName, dateStr, lines = 3) {
   const filename = `ups-log-${upsName}-${dateStr}.csv`;
-  const header   = 'timestamp,input_voltage,output_voltage,load_pct\n';
+  const header   = 'timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min\n';
   const rows     = Array.from({ length: lines }, (_, i) =>
-    `${dateStr}T0${i}:00:00.000Z,230,229,20`).join('\n') + '\n';
+    `${dateStr}T0${i}:00:00.000Z,230,229,90,20,18.50`).join('\n') + '\n';
   const ddir = resolveDataDir(storagePath);
   fs.mkdirSync(ddir, { recursive: true });
   fs.writeFileSync(path.join(ddir, filename), header + rows, 'utf8');
@@ -327,7 +327,7 @@ describe('handleExport30d', () => {
 
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('ups');
-    expect(resp.csv.trim()).toBe('timestamp,input_voltage,output_voltage,load_pct');
+    expect(resp.csv.trim()).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
     expect(resp.filename).toMatch(/^ups-ups-30d-\d{4}-\d{2}-\d{2}\.csv$/);
 
     fs.rmSync(dir, { recursive: true });
@@ -360,7 +360,7 @@ describe('handleExport30d', () => {
 
     const headers = lines.filter(l => l.startsWith('timestamp,'));
     expect(headers).toHaveLength(1);
-    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,load_pct');
+    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
 
     fs.rmSync(dir, { recursive: true });
   });

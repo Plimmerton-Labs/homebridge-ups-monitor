@@ -361,7 +361,26 @@ function slicedHistory(upsName) {
   const TARGET = 240;
   const step   = Math.max(1, Math.floor(pts.length / TARGET));
   const dec    = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
-  const xy = key => dec.map(p => ({ x: new Date(p.t).getTime(), y: p[key] }));
+  // Gap detection: if two consecutive plotted points are spaced much further
+  // apart than the typical sample spacing, the data collection paused there
+  // (e.g. a Homebridge restart). Insert a null point so the line BREAKS over
+  // the gap rather than drawing a smooth bridge that looks like real readings.
+  const ts      = dec.map(p => new Date(p.t).getTime());
+  const deltas  = [];
+  for (let i = 1; i < ts.length; i++) deltas.push(ts[i] - ts[i - 1]);
+  const sorted  = deltas.slice().sort((a, b) => a - b);
+  const median  = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  const gapMs   = median > 0 ? median * 2.5 : Infinity;
+  const xy = key => {
+    const out = [];
+    for (let i = 0; i < dec.length; i++) {
+      if (i > 0 && ts[i] - ts[i - 1] > gapMs) {
+        out.push({ x: ts[i - 1] + (ts[i] - ts[i - 1]) / 2, y: null });
+      }
+      out.push({ x: ts[i], y: dec[i][key] });
+    }
+    return out;
+  };
   return {
     inV:   xy('inV'),
     outV:  xy('outV'),
@@ -393,7 +412,7 @@ const OPTS = {
     },
     y: { ticks: { color: '#7a8399', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
   },
-  elements: { point: { radius: 1, hoverRadius: 4 }, line: { tension: 0.3 } },
+  elements: { point: { radius: 1, hoverRadius: 4 }, line: { tension: 0, spanGaps: false } },
   animation: { duration: 200 },
 };
 

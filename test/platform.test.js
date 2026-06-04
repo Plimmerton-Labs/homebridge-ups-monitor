@@ -22,13 +22,12 @@ jest.mock('../lib/dashboardServer', () => {
   }));
 });
 
-// ── Stop setInterval from leaking open handles across tests ───────────────────
-// The platform calls setInterval(poll, pollMs) in setupPolling().  We replace
-// it with a no-op mock so Jest can exit cleanly.  Individual tests call poll()
-// synchronously via the first `poll()` at the end of setupPolling, so timers
-// are not needed for our assertions.
+// ── Stop poll timers from leaking open handles across tests ───────────────────
+// setupPolling() runs an immediate poll and then self-schedules the next one via
+// setTimeout().  We replace setTimeout with a no-op so no real timer is queued;
+// the immediate first poll still runs, which is all our assertions need.
 beforeEach(() => {
-  jest.spyOn(global, 'setInterval').mockReturnValue(1);
+  jest.spyOn(global, 'setTimeout').mockReturnValue(1);
 });
 afterEach(() => {
   jest.restoreAllMocks();
@@ -441,6 +440,92 @@ describe('NUTDashboardPlatform — HomeKit tile services (Feature 1)', () => {
       const { platform, log } = makePlatform({});
       expect(platform._dashboardServer).toBeNull();
       expect(log.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shutdown cleanup', () => {
+    function makePlatform(config) {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi();
+      const log = makeMockLog();
+      const platform = new NUTDashboardPlatform(log, { host: '127.0.0.1', ups: 'ups', ...config }, api);
+      return { platform, api, log };
+    }
+
+    test('registers a shutdown handler', () => {
+      const { api } = makePlatform({});
+      expect(api.on).toHaveBeenCalledWith('shutdown', expect.any(Function));
+    });
+
+    test('clears pending poll timers', () => {
+      const { platform } = makePlatform({});
+      const clearSpy = jest.spyOn(global, 'clearTimeout');
+      platform._pollTimers.set('ups', 1);
+      platform._pollTimers.set('ups2', 2);
+      platform._shutdown();
+      expect(clearSpy).toHaveBeenCalledTimes(2);
+      expect(platform._pollTimers.size).toBe(0);
+    });
+
+    test('stops the standalone dashboard server when running', () => {
+      const { platform } = makePlatform({ standalonePort: 8581 });
+      const server = platform._dashboardServer;
+      expect(server).not.toBeNull();
+      platform._shutdown();
+      expect(server.stop).toHaveBeenCalled();
+      expect(platform._dashboardServer).toBeNull();
+    });
+
+    test('is a no-op when no dashboard server is running', () => {
+      const { platform } = makePlatform({});
+      expect(platform._dashboardServer).toBeNull();
+      expect(() => platform._shutdown()).not.toThrow();
+    });
+  });
+
+  describe('pollInterval validation', () => {
+    function makePlatform(config) {
+      const { NUTDashboardPlatform } = loadPlatform();
+      const api = makeMockApi();
+      const log = makeMockLog();
+      const platform = new NUTDashboardPlatform(log, { host: '127.0.0.1', ups: 'ups', ...config }, api);
+      return { platform, log };
+    }
+
+    test('uses a valid interval as given', () => {
+      const { platform, log } = makePlatform({ pollInterval: 10 });
+      expect(platform.pollSec).toBe(10);
+      expect(platform.pollMs).toBe(10000);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    test('floors a fractional interval', () => {
+      const { platform } = makePlatform({ pollInterval: 5.9 });
+      expect(platform.pollSec).toBe(5);
+    });
+
+    test('defaults to 30s when omitted (no warning)', () => {
+      const { platform, log } = makePlatform({});
+      expect(platform.pollSec).toBe(30);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    test('falls back to 30s and warns on a negative interval', () => {
+      const { platform, log } = makePlatform({ pollInterval: -5 });
+      expect(platform.pollSec).toBe(30);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid pollInterval'));
+    });
+
+    test('falls back to 30s and warns on a non-numeric interval', () => {
+      const { platform, log } = makePlatform({ pollInterval: 'fast' });
+      expect(platform.pollSec).toBe(30);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid pollInterval'));
+    });
+
+    test('falls back to 30s and warns on a sub-1s interval', () => {
+      const { platform, log } = makePlatform({ pollInterval: 0.5 });
+      expect(platform.pollSec).toBe(30);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid pollInterval'));
     });
   });
 

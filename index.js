@@ -65,8 +65,11 @@ class NUTDashboardPlatform {
     // UPS name(s) — typically just ['ups']
     this.upsList  = Array.isArray(config.ups) ? config.ups : [config.ups || 'ups'];
 
-    // Polling interval in ms
-    this.pollMs   = (config.pollInterval || 30) * 1000;
+    // Polling interval (seconds). Validated up front so a bad config value can
+    // never produce a tight poll loop: anything missing, non-numeric, or < 1
+    // falls back to the 30 s default.
+    this.pollSec = this._resolvePollSec(config.pollInterval);
+    this.pollMs  = this.pollSec * 1000;
 
     // Low battery threshold
     this.lowBatThreshold = config.lowBatteryThreshold || 20;
@@ -99,6 +102,10 @@ class NUTDashboardPlatform {
     // Map of upsName → DailyLog instance (30-day CSV log per UPS)
     this.dailyLogs = new Map();
 
+    // Map of upsName → pending poll timer (so a self-scheduling loop has a
+    // stable handle; see setupPolling).
+    this._pollTimers = new Map();
+
     this.log.info(
       `NUT UPS Monitor starting — server: ${this.host}:${this.port}, ` +
       `UPS: [${this.upsList.join(', ')}]`
@@ -120,6 +127,7 @@ class NUTDashboardPlatform {
     }
 
     this.api.on('didFinishLaunching', () => this.initAccessories());
+    this.api.on('shutdown', () => this._shutdown());
   }
 
   // Start the optional standalone dashboard web server on the given (validated) port.
@@ -185,6 +193,34 @@ class NUTDashboardPlatform {
     }
   }
 
+  // Validate the configured poll interval (seconds). Returns a safe integer:
+  // a finite value >= 1 is floored and used; anything else falls back to 30 and
+  // logs a warning when a value was actually provided.
+  _resolvePollSec(raw) {
+    if (raw == null || raw === '') return 30;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 1) return Math.floor(n);
+    this.log.warn(
+      `Invalid pollInterval "${raw}" — must be a number >= 1 (seconds). Falling back to 30s.`
+    );
+    return 30;
+  }
+
+  // Clean up on Homebridge shutdown: cancel pending poll timers and stop the
+  // standalone dashboard server, so a dynamic-platform reload does not leak
+  // timers or a listening socket.
+  _shutdown() {
+    for (const timer of this._pollTimers.values()) {
+      clearTimeout(timer);
+    }
+    this._pollTimers.clear();
+
+    if (this._dashboardServer) {
+      Promise.resolve(this._dashboardServer.stop()).catch(() => { /* best-effort */ });
+      this._dashboardServer = null;
+    }
+  }
+
   // Called by Homebridge for every accessory it already knows about
   configureAccessory(accessory) {
     this.cachedAccessories.set(accessory.UUID, accessory);
@@ -219,7 +255,7 @@ class NUTDashboardPlatform {
     // Ring buffer for this UPS — sized to retain ~24 h of history at the
     // configured poll interval (e.g. 2880 points at 30 s). Bounded so very
     // fast poll intervals don't produce an oversized backing file.
-    const pollSec  = Math.max(1, this.pollMs / 1000);
+    const pollSec  = this.pollSec;
     const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / pollSec)));
     const histFile = path.join(this.dataDir, `ups-history-${upsName}.json`);
     const ringBuf  = new RingBuffer(histFile, capacity);
@@ -263,8 +299,15 @@ class NUTDashboardPlatform {
         };
         ringBuf.push(point);
 
-        // Append voltage + load to the 30-day daily CSV log
-        dailyLog.append({ t: point.t, inV: point.inV, outV: point.outV, load: point.load });
+        // Append voltage, battery %, load %, and runtime to the 30-day daily CSV log
+        dailyLog.append({
+          t:       point.t,
+          inV:     point.inV,
+          outV:    point.outV,
+          bat:     point.bat,
+          load:    point.load,
+          runtime: point.runtime,
+        });
 
         this.log.debug(
           `[${upsName}] ${flags.raw} | ` +
@@ -277,8 +320,21 @@ class NUTDashboardPlatform {
       }
     };
 
-    // First poll immediately, then on interval
-    poll();
-    setInterval(poll, this.pollMs);
+    // Self-scheduling loop: re-arm the next poll only after the current one
+    // settles (poll() catches its own errors and never rejects), so a slow NUT
+    // query can never overlap the next poll. The timer is unref'd so it does not
+    // hold the process open, and is tracked per-UPS for a clean shutdown.
+    const scheduleNext = () => {
+      const timer = setTimeout(tick, this.pollMs);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+      this._pollTimers.set(upsName, timer);
+    };
+    const tick = async () => {
+      await poll();
+      scheduleNext();
+    };
+
+    // First poll immediately, then re-arm after each completes.
+    tick();
   }
 }
