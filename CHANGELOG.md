@@ -1,4 +1,4 @@
-## [1.10.5](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.4-beta.244...v1.10.5) (2026-06-04)
+## [1.10.6](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.5-beta.248...v1.10.6) (2026-06-04)
 
 ### Features
 
@@ -9,7 +9,7 @@
 * **dashboard:** draw real voltage instead of smoothing it away ([1249469](https://github.com/GodIsI/homebridge-ups-monitor/commit/1249469f9bf1f09e1403b5e4334d334b2795a987))
 * **poll:** validate interval and prevent overlapping polls ([ef487b7](https://github.com/GodIsI/homebridge-ups-monitor/commit/ef487b79443e9fca362a6995639f192c815f90c6))
 
-## [1.10.4-beta.244](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.3-beta.240...v1.10.4-beta.244) (2026-06-01)
+## [1.10.5-beta.248](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.4-beta.244...v1.10.5-beta.248) (2026-06-01)
 
 ### Bug Fixes
 
