@@ -194,7 +194,8 @@ class NUTUiServer extends HomebridgePluginUiServer {
    *   { success: true,  upsName, filename, csv }
    *   { success: false, error }
    *
-   * CSV columns (from daily log files): timestamp, input_voltage, output_voltage, load_pct
+   * CSV columns: timestamp, input_voltage, output_voltage, battery_pct, load_pct, runtime_min
+   * (older 4-column daily logs are remapped, leaving battery_pct/runtime_min blank)
    */
   async handleExport30d(body = {}) {
     try {
@@ -211,16 +212,27 @@ class NUTUiServer extends HomebridgePluginUiServer {
         // storageDir doesn't exist yet — return header-only CSV
       }
 
-      const HEADER = 'timestamp,input_voltage,output_voltage,load_pct';
+      // Unified output schema. Daily log files written by older plugin versions
+      // only have 4 columns (no battery_pct / runtime_min); remap every file by
+      // its own header so old and new files aggregate consistently, padding any
+      // missing columns as empty.
+      const COLUMNS  = ['timestamp', 'input_voltage', 'output_voltage', 'battery_pct', 'load_pct', 'runtime_min'];
+      const HEADER   = COLUMNS.join(',');
       const dataRows = [];
 
       for (const filename of logFiles) {
         try {
           const content = fs.readFileSync(path.join(dataDir, filename), 'utf8');
           const lines   = content.split('\n');
-          // Skip the header line (first line); collect non-empty data rows
+          if (!lines.length) continue;
+          const cols    = lines[0].split(',').map(c => c.trim());
+          // Skip the header line (first line); remap non-empty data rows
           for (let i = 1; i < lines.length; i++) {
-            if (lines[i].trim()) dataRows.push(lines[i]);
+            if (!lines[i].trim()) continue;
+            const cells = lines[i].split(',');
+            const byName = {};
+            cols.forEach((name, idx) => { byName[name] = cells[idx] ?? ''; });
+            dataRows.push(COLUMNS.map(name => byName[name] ?? '').join(','));
           }
         } catch {
           // Skip unreadable files — best-effort

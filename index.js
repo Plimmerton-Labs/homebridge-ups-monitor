@@ -263,8 +263,15 @@ class NUTDashboardPlatform {
         };
         ringBuf.push(point);
 
-        // Append voltage + load to the 30-day daily CSV log
-        dailyLog.append({ t: point.t, inV: point.inV, outV: point.outV, load: point.load });
+        // Append voltage, battery %, load %, and runtime to the 30-day daily CSV log
+        dailyLog.append({
+          t:       point.t,
+          inV:     point.inV,
+          outV:    point.outV,
+          bat:     point.bat,
+          load:    point.load,
+          runtime: point.runtime,
+        });
 
         this.log.debug(
           `[${upsName}] ${flags.raw} | ` +

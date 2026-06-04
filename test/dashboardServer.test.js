@@ -209,26 +209,32 @@ describe('DashboardServer', () => {
     const { status, body } = await post(port, '/export-30d');
     expect(status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.csv).toBe('timestamp,input_voltage,output_voltage,load_pct');
+    expect(body.csv).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
   });
 
-  test('POST /export-30d aggregates multiple daily log files', async () => {
-    const header = 'timestamp,input_voltage,output_voltage,load_pct\n';
+  test('POST /export-30d aggregates daily log files into the unified schema', async () => {
+    // Old-format file (4 columns, no battery/runtime) — must still remap.
     fs.writeFileSync(
       path.join(storageDir, 'ups-log-testups-2024-01-01.csv'),
-      header + '2024-01-01T00:00:00.000Z,230,228,10\n'
+      'timestamp,input_voltage,output_voltage,load_pct\n' +
+      '2024-01-01T00:00:00.000Z,230,228,10\n'
     );
+    // New-format file (6 columns).
     fs.writeFileSync(
       path.join(storageDir, 'ups-log-testups-2024-01-02.csv'),
-      header + '2024-01-02T00:00:00.000Z,229,227,12\n'
+      'timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min\n' +
+      '2024-01-02T00:00:00.000Z,229,227,95,12,18.50\n'
     );
 
     const { body } = await post(port, '/export-30d', { upsName: 'testups' });
     expect(body.success).toBe(true);
     const lines = body.csv.trim().split('\n');
     expect(lines.length).toBe(3);  // header + 2 data rows
-    expect(body.csv).toContain('2024-01-01');
-    expect(body.csv).toContain('2024-01-02');
+    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
+    // Old file: load stays in the load_pct column; battery_pct + runtime_min blank.
+    expect(lines).toContain('2024-01-01T00:00:00.000Z,230,228,,10,');
+    // New file: all columns carried through.
+    expect(lines).toContain('2024-01-02T00:00:00.000Z,229,227,95,12,18.50');
   });
 
   // ── POST /logs ────────────────────────────────────────────────────────────
