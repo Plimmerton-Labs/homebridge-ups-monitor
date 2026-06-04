@@ -1,6 +1,10 @@
-## [1.10.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.0...v1.10.1) (2026-06-04)
+## [1.10.3](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.2-beta.235...v1.10.3) (2026-06-04)
 
-## [1.10.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.9.1-beta.224...v1.10.0) (2026-06-01)
+### Bug Fixes
+
+* **dashboard:** draw real voltage instead of smoothing it away ([1249469](https://github.com/GodIsI/homebridge-ups-monitor/commit/1249469f9bf1f09e1403b5e4334d334b2795a987))
+
+## [1.10.2-beta.235](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.10.1-beta.231...v1.10.2-beta.235) (2026-06-01)
 
 ### Bug Fixes
 
