@@ -28,8 +28,8 @@ function tsForDate(dateStr) {
   return `${dateStr}T12:00:00.000Z`;
 }
 
-function makePoint(dateStr, inV = 230, outV = 229, load = 20) {
-  return { t: tsForDate(dateStr), inV, outV, load };
+function makePoint(dateStr, inV = 230, outV = 229, load = 20, bat = 100, runtime = 1110) {
+  return { t: tsForDate(dateStr), inV, outV, bat, load, runtime };
 }
 
 // ── Construction ──────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ describe('DailyLog — append', () => {
     expect(fs.existsSync(file)).toBe(true);
 
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
-    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,load_pct');
+    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
     expect(lines).toHaveLength(2);
 
     fs.rmSync(dir, { recursive: true });
@@ -90,7 +90,7 @@ describe('DailyLog — append', () => {
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
     // 1 header + 3 data rows
     expect(lines).toHaveLength(4);
-    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,load_pct');
+    expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
 
     fs.rmSync(dir, { recursive: true });
   });
@@ -99,11 +99,12 @@ describe('DailyLog — append', () => {
     const dir = tmpDir();
     const log = new DailyLog(dir, 'ups');
     const ts  = `${todayStr()}T08:30:00.000Z`;
-    log.append({ t: ts, inV: 230.5, outV: 229.3, load: 18 });
+    log.append({ t: ts, inV: 230.5, outV: 229.3, bat: 87, load: 18, runtime: 1110 });
 
     const file  = path.join(dir, `ups-log-ups-${todayStr()}.csv`);
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
-    expect(lines[1]).toBe(`${ts},230.5,229.3,18`);
+    // runtime is written in minutes (1110s / 60 = 18.50)
+    expect(lines[1]).toBe(`${ts},230.5,229.3,87,18,18.50`);
 
     fs.rmSync(dir, { recursive: true });
   });
@@ -111,11 +112,11 @@ describe('DailyLog — append', () => {
   test('null values are written as empty fields', () => {
     const dir = tmpDir();
     const log = new DailyLog(dir, 'ups');
-    log.append({ t: `${todayStr()}T00:00:00.000Z`, inV: null, outV: null, load: null });
+    log.append({ t: `${todayStr()}T00:00:00.000Z`, inV: null, outV: null, bat: null, load: null, runtime: null });
 
     const file  = path.join(dir, `ups-log-ups-${todayStr()}.csv`);
     const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
-    expect(lines[1]).toBe(`${todayStr()}T00:00:00.000Z,,,`);
+    expect(lines[1]).toBe(`${todayStr()}T00:00:00.000Z,,,,,`);
 
     fs.rmSync(dir, { recursive: true });
   });
