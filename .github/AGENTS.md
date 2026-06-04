@@ -25,6 +25,26 @@ git config --local cowork.token "ghp_..."
 
 ---
 
+## Skills (git submodule)
+
+Reusable AI skills live in the `skills/` git submodule (source: <https://github.com/davidamitchell/Skills>). Each subdirectory holds one `SKILL.md` prompt file covering a research, writing, or engineering workflow.
+
+They are **not** pulled by a plain `git clone`. Initialize them once after cloning:
+
+```bash
+git submodule update --init --recursive
+```
+
+Read the relevant `skills/<name>/SKILL.md` before starting a task it covers. Ones useful in this repo:
+
+- `code-review`, `tdd`, `swe` — engineering workflow
+- `technical-writer`, `plain-language`, `remove-ai-slop` — docs and README work
+- `research`, `research-question`, `citation-discipline` — investigation tasks
+
+The submodule is pinned to a specific commit. Update it deliberately with `git submodule update --remote skills` in its own `chore/` PR, never as a side effect of unrelated work.
+
+---
+
 ## Branch Strategy
 
 | Branch | Purpose |
