@@ -218,3 +218,69 @@ Gaps to close:
 **Outcome:** a clean storage root and a self-contained data folder — easier to back up, inspect, and reason about; supports the verification/tidiness goals.
 
 **Depends on:** none.
+
+---
+
+## Feature 11 — Outage Timeline & Acknowledgement ⚡ `agent/outage-timeline`
+
+**Goal:** Turn `ups.status` transitions into a clear outage history so users can see when power failed, when it recovered, how long the outage lasted, and whether the latest outage has been acknowledged.
+
+This should extend the dashboard's observability story without making the plugin control-heavy. The feature should answer the practical home-user questions: "Did the power go out?", "When?", "For how long?", and "Have I already dealt with this?"
+
+### Dashboard experience
+
+- Add a **latest outage** tile/card near the status summary:
+  - show **None recorded** when no outage has been captured;
+  - show the most recent outage as `from → to` with duration when recovered;
+  - show `Started <time> — ongoing` while currently on battery;
+  - show an **Unacknowledged** state until the user acknowledges it.
+- Add an **Outage Timeline** section listing recent outages newest-first:
+  - start time;
+  - end time, or `ongoing`;
+  - duration;
+  - starting/ending battery percentage when available;
+  - lowest battery percentage seen during the outage when available;
+  - acknowledged/unacknowledged state.
+- Add clear user actions:
+  - **Acknowledge latest**: marks the latest completed or ongoing outage as acknowledged but keeps it in history.
+  - **Clear timeline**: removes stored outage history after confirmation. This should not affect the normal voltage/battery/load history charts or daily CSV logs.
+
+### Persistence and logging
+
+- Persist outage events under the existing `<storage>/homebridge-ups-monitor/` data directory.
+- Detect outage boundaries from NUT status flags:
+  - outage starts when `flags.onBattery` becomes true;
+  - outage ends when `flags.onBattery` becomes false after an active outage;
+  - mark low-battery state during the event if `flags.lowBattery` is observed.
+- Keep the event log best-effort and resilient:
+  - if Homebridge restarts during an outage, preserve and resume the active outage where possible;
+  - if the event file is missing or malformed, log a warning and continue monitoring;
+  - do not crash Homebridge on event-log read/write errors.
+- Consider adding an outage CSV export later, but keep the first implementation focused on the dashboard timeline and persisted JSON event log.
+
+### Setup guidance
+
+Document the important limitation: the plugin can only log outages while Homebridge and the Raspberry Pi/server running it remain powered and online. For useful outage logging, the Homebridge host should itself be powered by the UPS being monitored, and NUT should keep running during the outage.
+
+If the Raspberry Pi or Homebridge server loses power before or during the outage, the plugin may miss the event, lose the end time, or only record partial history.
+
+### Tests
+
+- Unit-test outage transition detection:
+  - online → on battery starts an outage;
+  - on battery → online completes an outage;
+  - repeated on-battery polls update the active outage without creating duplicates;
+  - low-battery observations are captured;
+  - restart/resume behavior preserves an active outage where practical.
+- Test acknowledgement and clear operations.
+- Test malformed/missing event-log files degrade gracefully.
+- Add dashboard server endpoint tests for timeline read, acknowledge latest, and clear timeline.
+
+### Risks
+
+- Avoid false duplicate outages from repeated `OB` polls.
+- Avoid losing an active outage when Homebridge restarts.
+- Keep user actions explicit: acknowledging should not delete history; clearing should require confirmation.
+- Do not imply the plugin can record outages while the host running Homebridge is itself offline.
+
+**Depends on:** existing `parseStatusFlags`, storage subdirectory, dashboard API, and standalone dashboard UI.
