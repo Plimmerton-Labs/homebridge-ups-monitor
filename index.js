@@ -22,6 +22,7 @@ const { queryNUT, listInstCmds, listRWVars, sendInstCmd, setVar } = require('./l
 const { parseStatusFlags } = require('./lib/nutParser');
 const RingBuffer           = require('./lib/ringBuffer');
 const DailyLog             = require('./lib/dailyLog');
+const OutageLog            = require('./lib/outageLog');
 const DashboardServer      = require('./lib/dashboardServer');
 const { resolveDataDir, migrateLegacyFiles, migrateLegacyLocations } = require('./lib/storagePaths');
 
@@ -101,6 +102,9 @@ class NUTDashboardPlatform {
 
     // Map of upsName → DailyLog instance (30-day CSV log per UPS)
     this.dailyLogs = new Map();
+
+    // Map of upsName → OutageLog instance (one timeline file per UPS)
+    this.outageLogs = new Map();
 
     // Map of upsName → pending poll timer (so a self-scheduling loop has a
     // stable handle; see setupPolling).
@@ -265,6 +269,10 @@ class NUTDashboardPlatform {
     const dailyLog = new DailyLog(this.dataDir, upsName, 30);
     this.dailyLogs.set(upsName, dailyLog);
 
+    // Outage timeline for this UPS
+    const outageLog = new OutageLog(this.dataDir, upsName, { log: this.log });
+    this.outageLogs.set(upsName, outageLog);
+
     // Initialise all tiles — each returns an update() function
     const tiles = [
       setupBatteryTile(accessory, this.api, upsName, { lowBatThreshold: this.lowBatThreshold }),
@@ -298,6 +306,7 @@ class NUTDashboardPlatform {
           runtime: data['battery.runtime'] ?? null,
         };
         ringBuf.push(point);
+        outageLog.record({ t: point.t, flags, batteryCharge: point.bat });
 
         // Append voltage, battery %, load %, and runtime to the 30-day daily CSV log
         dailyLog.append({
