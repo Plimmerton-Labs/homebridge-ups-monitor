@@ -1,10 +1,10 @@
-## [1.11.4](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.11.3-beta.269...v1.11.4) (2026-06-05)
+## [1.11.5](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.11.4-beta.273...v1.11.5) (2026-06-05)
 
 ### Features
 
 * add outage timeline ([802f18c](https://github.com/GodIsI/homebridge-ups-monitor/commit/802f18c6c02d7d848dba3c37cfe6b81b1c2e4700))
 
-## [1.11.3-beta.269](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.11.2-beta.266...v1.11.3-beta.269) (2026-06-04)
+## [1.11.4-beta.273](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.11.3-beta.269...v1.11.4-beta.273) (2026-06-04)
 
 ### Features
 
