@@ -91,6 +91,16 @@ function writeDailyLog(storagePath, upsName, dateStr, lines = 3) {
   return filename;
 }
 
+function writeOutageLog(storagePath, upsName, events) {
+  const ddir = resolveDataDir(storagePath);
+  fs.mkdirSync(ddir, { recursive: true });
+  fs.writeFileSync(
+    path.join(ddir, `ups-outages-${upsName}.json`),
+    JSON.stringify({ v: 1, events }),
+    'utf8',
+  );
+}
+
 // ── handleExport ──────────────────────────────────────────────────────────────
 
 describe('handleExport', () => {
@@ -311,6 +321,94 @@ describe('handleLogsDownload', () => {
 
     expect(resp.success).toBe(false);
     expect(resp.error).toMatch(/not found/i);
+
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+// ── handleOutages ───────────────────────────────────────────────────────────
+
+describe('handleOutages', () => {
+  test('returns latest outage and timeline events', async () => {
+    const dir = tmpDir();
+    const ctx = makeServerCtx(dir, 'ups');
+    writeOutageLog(dir, 'ups', [{
+      id: '2026-06-05T01:00:00.000Z',
+      upsName: 'ups',
+      start: '2026-06-05T01:00:00.000Z',
+      end: '2026-06-05T01:05:00.000Z',
+      durationSec: 300,
+      ongoing: false,
+      acknowledged: false,
+      acknowledgedAt: null,
+      startBattery: 90,
+      endBattery: 84,
+      lowestBattery: 84,
+      lowBattery: false,
+    }]);
+
+    const resp = await ctx.handleOutages({ upsName: 'ups' });
+
+    expect(resp.success).toBe(true);
+    expect(resp.latest.durationSec).toBe(300);
+    expect(resp.events).toHaveLength(1);
+
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  test('acknowledges the latest outage without deleting it', async () => {
+    const dir = tmpDir();
+    const ctx = makeServerCtx(dir, 'ups');
+    writeOutageLog(dir, 'ups', [{
+      id: '2026-06-05T01:00:00.000Z',
+      upsName: 'ups',
+      start: '2026-06-05T01:00:00.000Z',
+      end: '2026-06-05T01:05:00.000Z',
+      durationSec: 300,
+      ongoing: false,
+      acknowledged: false,
+      acknowledgedAt: null,
+      startBattery: 90,
+      endBattery: 84,
+      lowestBattery: 84,
+      lowBattery: false,
+    }]);
+
+    const resp = await ctx.handleOutagesAcknowledge({ upsName: 'ups' });
+
+    expect(resp.success).toBe(true);
+    expect(resp.acknowledged).toBe(true);
+    expect(resp.latest.acknowledged).toBe(true);
+    expect(resp.events).toHaveLength(1);
+
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  test('clears outage history without removing daily logs', async () => {
+    const dir = tmpDir();
+    const ctx = makeServerCtx(dir, 'ups');
+    writeDailyLog(dir, 'ups', '2026-06-05');
+    writeOutageLog(dir, 'ups', [{
+      id: '2026-06-05T01:00:00.000Z',
+      upsName: 'ups',
+      start: '2026-06-05T01:00:00.000Z',
+      end: null,
+      durationSec: null,
+      ongoing: true,
+      acknowledged: false,
+      acknowledgedAt: null,
+      startBattery: 90,
+      endBattery: null,
+      lowestBattery: 90,
+      lowBattery: false,
+    }]);
+
+    const resp = await ctx.handleOutagesClear({ upsName: 'ups' });
+
+    expect(resp.success).toBe(true);
+    expect(resp.cleared).toBe(1);
+    expect(resp.events).toEqual([]);
+    expect(fs.existsSync(path.join(resolveDataDir(dir), 'ups-log-ups-2026-06-05.csv'))).toBe(true);
 
     fs.rmSync(dir, { recursive: true });
   });

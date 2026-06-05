@@ -300,4 +300,97 @@ describe('DashboardServer', () => {
     expect(body.success).toBe(false);
     expect(body.error).toMatch(/not found/i);
   });
+
+  // ── POST /outages ─────────────────────────────────────────────────────────
+
+  test('POST /outages returns latest outage and timeline events', async () => {
+    fs.writeFileSync(
+      path.join(storageDir, 'ups-outages-testups.json'),
+      JSON.stringify({
+        v: 1,
+        events: [{
+          id: '2026-06-05T01:00:00.000Z',
+          upsName: 'testups',
+          start: '2026-06-05T01:00:00.000Z',
+          end: '2026-06-05T01:05:00.000Z',
+          durationSec: 300,
+          ongoing: false,
+          acknowledged: false,
+          acknowledgedAt: null,
+          startBattery: 90,
+          endBattery: 84,
+          lowestBattery: 84,
+          lowBattery: false,
+        }],
+      }),
+      'utf8'
+    );
+
+    const { status, body } = await post(port, '/outages', { upsName: 'testups' });
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.upsName).toBe('testups');
+    expect(body.latest.durationSec).toBe(300);
+    expect(body.events).toHaveLength(1);
+  });
+
+  test('POST /outages/acknowledge marks the latest outage as acknowledged', async () => {
+    fs.writeFileSync(
+      path.join(storageDir, 'ups-outages-testups.json'),
+      JSON.stringify({
+        v: 1,
+        events: [{
+          id: '2026-06-05T01:00:00.000Z',
+          upsName: 'testups',
+          start: '2026-06-05T01:00:00.000Z',
+          end: '2026-06-05T01:05:00.000Z',
+          durationSec: 300,
+          ongoing: false,
+          acknowledged: false,
+          acknowledgedAt: null,
+          startBattery: 90,
+          endBattery: 84,
+          lowestBattery: 84,
+          lowBattery: false,
+        }],
+      }),
+      'utf8'
+    );
+
+    const { body } = await post(port, '/outages/acknowledge', { upsName: 'testups' });
+
+    expect(body.success).toBe(true);
+    expect(body.acknowledged).toBe(true);
+    expect(body.latest.acknowledged).toBe(true);
+    expect(body.events).toHaveLength(1);
+  });
+
+  test('POST /outages/clear removes outage events only', async () => {
+    fs.writeFileSync(
+      path.join(storageDir, 'ups-outages-testups.json'),
+      JSON.stringify({
+        v: 1,
+        events: [{
+          id: '2026-06-05T01:00:00.000Z',
+          upsName: 'testups',
+          start: '2026-06-05T01:00:00.000Z',
+          end: null,
+          durationSec: null,
+          ongoing: true,
+          acknowledged: false,
+          acknowledgedAt: null,
+        }],
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(storageDir, 'ups-log-testups-2026-06-05.csv'), 'header\nrow\n', 'utf8');
+
+    const { body } = await post(port, '/outages/clear', { upsName: 'testups' });
+
+    expect(body.success).toBe(true);
+    expect(body.cleared).toBe(1);
+    expect(body.events).toEqual([]);
+    expect(fs.existsSync(path.join(storageDir, 'ups-log-testups-2026-06-05.csv'))).toBe(true);
+  });
 });

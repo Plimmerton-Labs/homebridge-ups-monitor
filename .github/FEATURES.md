@@ -221,11 +221,19 @@ Gaps to close:
 
 ---
 
-## Feature 11 — Outage Timeline & Acknowledgement ⚡ `agent/outage-timeline`
+## Feature 11 — Outage Timeline & Acknowledgement ✅ `agent/outage-timeline`
 
 **Goal:** Turn `ups.status` transitions into a clear outage history so users can see when power failed, when it recovered, how long the outage lasted, and whether the latest outage has been acknowledged.
 
 This should extend the dashboard's observability story without making the plugin control-heavy. The feature should answer the practical home-user questions: "Did the power go out?", "When?", "For how long?", and "Have I already dealt with this?"
+
+**Delivered:**
+- `lib/outageLog.js` persists per-UPS outage events under the existing `homebridge-ups-monitor/` data directory.
+- Polling in `index.js` records online/on-battery transitions, resumes active outages after restart, and captures low-battery observations.
+- Shared telemetry endpoints expose `/outages`, `/outages/acknowledge`, and `/outages/clear` in both the standalone dashboard server and Homebridge UI server.
+- Dashboard shows the latest outage card, timeline, acknowledgement, and clear controls.
+- README documents the important setup limitation: Homebridge/Raspberry Pi and NUT must stay powered for complete outage logging.
+- Unit and dashboard server endpoint tests cover transition detection, acknowledgement, clearing, restart resume, and malformed event files.
 
 ### Dashboard experience
 
