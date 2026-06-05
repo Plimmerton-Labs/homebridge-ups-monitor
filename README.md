@@ -21,6 +21,7 @@ Built for Raspberry Pi setups running NUT alongside Homebridge, and pairs well w
 - Supports **multiple UPS units** on the same NUT server
 - Configurable **poll interval** and **low battery threshold**
 - History charts with selectable **1h / 6h / 12h / 24h** ranges, backed by a persistent ~24h server-side ring buffer
+- **Outage timeline** with latest outage status, duration, battery impact, acknowledgement, and clear controls
 
 ---
 
@@ -129,11 +130,15 @@ Once Homebridge restarts, open it from any device on your network (phone, tablet
 You'll see:
 
 - Status banner (Online / On Battery / Low Battery) with UPS model name
-- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage
+- Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage, and latest outage
+- Outage timeline with start/end times, duration, battery percentages, acknowledgement, and clear controls
 - Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
+- CSV export for **Last 24 Hours**, **Last 30 Days**, and **Outage Timeline** data
 - Auto-refresh every 15 seconds with a countdown indicator
 
-History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Data files (history JSON and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
+History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Outage events are persisted separately as JSON. Data files (history JSON, outage JSON, and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.
+
+> **Outage logging note:** the plugin can only record outages while the machine running Homebridge stays powered and online. For useful outage logging, keep your Homebridge host/Raspberry Pi and the NUT server on the UPS being monitored. If the host loses power, the outage timeline may miss the event, miss the recovery time, or show only partial history.
 
 > **Storage location & upgrades:** the storage directory is resolved from the path Homebridge reports (`api.user.storagePath()`), so data is always kept inside your active Homebridge storage folder, including custom `-U` setups. Earlier versions could fall back to `~/.homebridge`; on first launch after upgrading, the plugin automatically moves any history/CSV files left in those previous locations into the current `homebridge-ups-monitor/` folder, so your history carries over. The migration is best-effort and non-destructive: if nothing is found, or files can't be moved, it logs a note and continues.
 

@@ -11,6 +11,10 @@
  *   POST /history           → returns 24h ring-buffer points as JSON
  *   POST /export            → returns 24h ring-buffer as a CSV string
  *   POST /export-30d        → aggregates all 30-day daily logs into a single CSV string
+ *   POST /outages           → returns outage timeline events for a UPS
+ *   POST /outages/acknowledge → acknowledges the latest outage
+ *   POST /outages/clear     → clears outage timeline events for a UPS
+ *   POST /outages/export    → returns outage timeline as CSV
  *   POST /logs              → lists available 30-day daily log files for a UPS
  *   POST /logs/download     → returns the contents of one daily log file as CSV
  */
@@ -31,6 +35,10 @@ class NUTUiServer extends HomebridgePluginUiServer {
     this.onRequest('/history',         this.handleHistory.bind(this));
     this.onRequest('/export',          this.handleExport.bind(this));
     this.onRequest('/export-30d',      this.handleExport30d.bind(this));
+    this.onRequest('/outages',         this.handleOutages.bind(this));
+    this.onRequest('/outages/acknowledge', this.handleOutagesAcknowledge.bind(this));
+    this.onRequest('/outages/clear',   this.handleOutagesClear.bind(this));
+    this.onRequest('/outages/export',  this.handleOutagesExport.bind(this));
     this.onRequest('/logs',            this.handleLogs.bind(this));
     this.onRequest('/logs/download',   this.handleLogsDownload.bind(this));
     this.ready();
@@ -178,6 +186,66 @@ class NUTUiServer extends HomebridgePluginUiServer {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
       return { success: true, upsName, files: telemetryStore.listLogs(dataDir, upsName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /outages
+   * Body: { upsName?: string }
+   *
+   * Returns latest outage plus timeline events, newest first.
+   */
+  async handleOutages(body = {}) {
+    try {
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, ...telemetryStore.readOutages(dataDir, upsName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /outages/acknowledge
+   * Body: { upsName?: string }
+   *
+   * Marks the latest outage as acknowledged without deleting history.
+   */
+  async handleOutagesAcknowledge(body = {}) {
+    try {
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, ...telemetryStore.acknowledgeLatestOutage(dataDir, upsName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /outages/clear
+   * Body: { upsName?: string }
+   *
+   * Clears outage timeline events only; telemetry CSV logs are retained.
+   */
+  async handleOutagesClear(body = {}) {
+    try {
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, ...telemetryStore.clearOutages(dataDir, upsName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /outages/export
+   * Body: { upsName?: string }
+   *
+   * Returns outage timeline events as CSV for sharing/download.
+   */
+  async handleOutagesExport(body = {}) {
+    try {
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, ...telemetryStore.buildOutageCsv(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }

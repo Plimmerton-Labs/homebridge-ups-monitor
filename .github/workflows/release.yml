@@ -31,13 +31,27 @@ jobs:
         id: pkg
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk '
+            /^## / {
+              if (found) exit
+              found = 1
+            }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG section found for this release." > release-notes.md
+          fi
+
       - name: Create stable GitHub release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.pkg.outputs.version }}
           name: v${{ steps.pkg.outputs.version }}
           files: homebridge-ups-monitor-*.tgz
-          generate_release_notes: true
+          body_path: release-notes.md
           make_latest: true
 
       # npm publish is handled by publish.yml (single Trusted Publisher entry)

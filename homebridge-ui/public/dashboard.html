@@ -92,6 +92,51 @@
     .battery-bar-wrap { margin-top: 8px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
     .battery-bar { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 
+    .outage-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); margin-bottom: 16px;
+    }
+    .outage-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .outage-header h2 {
+      font-size: 13px; font-weight: 600; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+    .outage-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .outage-btn {
+      padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text);
+      cursor: pointer; font-size: 12px; transition: all 0.15s;
+    }
+    .outage-btn:hover { background: var(--border); }
+    .outage-btn:disabled { opacity: 0.45; cursor: default; }
+    .outage-empty {
+      color: var(--text-dim); font-size: 12px;
+      padding: 10px 0;
+    }
+    .outage-list { display: flex; flex-direction: column; gap: 8px; }
+    .outage-row {
+      display: grid; grid-template-columns: 110px 1fr auto;
+      gap: 12px; align-items: center;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .outage-state {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .outage-state.ongoing { color: var(--yellow); }
+    .outage-state.done { color: var(--green); }
+    .outage-main { font-size: 13px; color: var(--text); line-height: 1.4; }
+    .outage-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .outage-pill {
+      font-size: 11px; color: var(--text-dim); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 8px; white-space: nowrap;
+    }
+
     .chart-section {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 18px;
@@ -166,6 +211,11 @@
     }
     .share-btn:hover    { opacity: 0.85; }
     .share-btn:disabled { opacity: 0.4; cursor: default; }
+
+    @media (max-width: 560px) {
+      .outage-row { grid-template-columns: 1fr; gap: 6px; }
+      .outage-pill { justify-self: start; }
+    }
   </style>
 </head>
 <body>
@@ -222,6 +272,24 @@
     <div class="metric-value val-normal" id="m-batt-v">–<span class="metric-unit">V</span></div>
     <div class="metric-sub" id="m-batt-v-nom"></div>
   </div>
+  <div class="metric-card">
+    <div class="metric-label"><span>⏳</span> Latest Outage</div>
+    <div class="metric-value val-normal" id="m-outage">None</div>
+    <div class="metric-sub" id="m-outage-sub">No outages recorded</div>
+  </div>
+</div>
+
+<div class="outage-section">
+  <div class="outage-header">
+    <h2>Outage Timeline</h2>
+    <div class="outage-actions">
+      <button class="outage-btn" id="outage-export-btn" onclick="exportAndShare('outages')" disabled>Export CSV</button>
+      <button class="outage-btn" id="outage-ack-btn" onclick="acknowledgeLatestOutage()" disabled>Acknowledge</button>
+      <button class="outage-btn" id="outage-clear-btn" onclick="clearOutageTimeline()" disabled>Clear</button>
+    </div>
+  </div>
+  <div class="outage-empty" id="outage-empty">No outages recorded</div>
+  <div class="outage-list" id="outage-list"></div>
 </div>
 
 <div class="chart-section">
@@ -264,6 +332,14 @@
       </button>
     </div>
 
+    <div class="share-card">
+      <div class="share-card-title">Outage Timeline</div>
+      <div class="share-card-desc">Power outage events with start/end times, duration, acknowledgement, and battery impact. Kept separate from telemetry exports.</div>
+      <button class="share-btn" id="share-outages-btn" onclick="exportAndShare('outages')" disabled>
+        📤 Share / Save
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -298,6 +374,7 @@ const MAX_POINTS = 8640;  // generous client cap; server retains ~24h per its po
 let allUPSData   = [];
 let activeUPSIdx = 0;
 let serverHistory = {};   // upsName → [{t,inV,outV,bat,load,runtime}]
+let outageState   = {};   // upsName → {latest, events}
 let activeRangeH  = 24;
 let voltageChart, batteryChart;
 let countdownVal, countdownTimer;
@@ -332,6 +409,130 @@ function fmtRuntime(s) {
 function fmtTime(iso) {
   try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
   catch { return iso; }
+}
+function fmtDateTime(iso) {
+  try {
+    return new Date(iso).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso || '–'; }
+}
+function fmtDurationSec(sec) {
+  if (sec == null || isNaN(sec)) return '–';
+  const total = Math.max(0, Math.round(Number(sec)));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+// ── Outages ──────────────────────────────────────────────────────────────────
+async function fetchOutages(upsName) {
+  if (!upsName) return;
+  try {
+    const resp = await apiRequest('/outages', { upsName });
+    if (!resp.success) throw new Error(resp.error || 'Outage timeline unavailable');
+    outageState[upsName] = { latest: resp.latest || null, events: Array.isArray(resp.events) ? resp.events : [] };
+    renderOutages(upsName);
+  } catch {
+    outageState[upsName] = outageState[upsName] || { latest: null, events: [] };
+    renderOutages(upsName);
+  }
+}
+
+function renderOutages(upsName) {
+  const state = outageState[upsName] || { latest: null, events: [] };
+  const latest = state.latest;
+  const events = state.events || [];
+  const outageValue = document.getElementById('m-outage');
+  const outageSub = document.getElementById('m-outage-sub');
+  const empty = document.getElementById('outage-empty');
+  const list = document.getElementById('outage-list');
+  const ackBtn = document.getElementById('outage-ack-btn');
+  const clearBtn = document.getElementById('outage-clear-btn');
+  const timelineExportBtn = document.getElementById('outage-export-btn');
+  const exportBtn = document.getElementById('share-outages-btn');
+
+  if (!latest) {
+    outageValue.textContent = 'None';
+    outageValue.className = 'metric-value val-green';
+    outageSub.textContent = 'No outages recorded';
+    empty.style.display = 'block';
+    empty.textContent = 'No outages recorded';
+    list.innerHTML = '';
+    ackBtn.disabled = true;
+    clearBtn.disabled = true;
+    timelineExportBtn.disabled = true;
+    if (exportBtn) exportBtn.disabled = true;
+    return;
+  }
+
+  if (latest.ongoing) {
+    outageValue.textContent = 'Ongoing';
+    outageValue.className = 'metric-value ' + (latest.lowBattery ? 'val-red' : 'val-yellow');
+    outageSub.textContent = `Started ${fmtDateTime(latest.start)}`;
+  } else {
+    outageValue.textContent = `${fmtTime(latest.start)} → ${fmtTime(latest.end)}`;
+    outageValue.className = 'metric-value ' + (latest.acknowledged ? 'val-green' : 'val-yellow');
+    outageSub.textContent = `${fmtDurationSec(latest.durationSec)}${latest.acknowledged ? ' · acknowledged' : ' · unacknowledged'}`;
+  }
+
+  empty.style.display = events.length ? 'none' : 'block';
+  ackBtn.disabled = latest.acknowledged;
+  clearBtn.disabled = events.length === 0;
+  timelineExportBtn.disabled = events.length === 0;
+  if (exportBtn) exportBtn.disabled = events.length === 0;
+  list.innerHTML = events.map(renderOutageRow).join('');
+}
+
+function renderOutageRow(event) {
+  const status = event.ongoing ? 'Ongoing' : 'Restored';
+  const statusClass = event.ongoing ? 'ongoing' : 'done';
+  const endText = event.ongoing ? 'Still on battery' : `Ended ${fmtDateTime(event.end)}`;
+  const batteryBits = [
+    event.startBattery != null ? `start ${event.startBattery}%` : null,
+    event.endBattery != null ? `end ${event.endBattery}%` : null,
+    event.lowestBattery != null ? `low ${event.lowestBattery}%` : null,
+  ].filter(Boolean).join(' · ');
+  const ackText = event.ongoing ? 'Active' : event.acknowledged ? 'Acknowledged' : 'Needs acknowledgement';
+  return `
+    <div class="outage-row">
+      <div class="outage-state ${statusClass}">${status}</div>
+      <div>
+        <div class="outage-main">Started ${fmtDateTime(event.start)} · ${endText}</div>
+        <div class="outage-meta">${fmtDurationSec(event.durationSec)}${batteryBits ? ' · ' + batteryBits : ''}</div>
+      </div>
+      <div class="outage-pill">${ackText}</div>
+    </div>`;
+}
+
+async function acknowledgeLatestOutage() {
+  const upsName = allUPSData[activeUPSIdx]?._upsName;
+  if (!upsName) return;
+  try {
+    const resp = await apiRequest('/outages/acknowledge', { upsName });
+    if (!resp.success) throw new Error(resp.error || 'Acknowledge failed');
+    outageState[upsName] = { latest: resp.latest || null, events: Array.isArray(resp.events) ? resp.events : [] };
+    renderOutages(upsName);
+  } catch (err) {
+    showError('Outage acknowledge failed: ' + err.message);
+  }
+}
+
+async function clearOutageTimeline() {
+  const upsName = allUPSData[activeUPSIdx]?._upsName;
+  if (!upsName) return;
+  if (!confirm(`Clear outage timeline for ${upsName}?`)) return;
+  try {
+    const resp = await apiRequest('/outages/clear', { upsName });
+    if (!resp.success) throw new Error(resp.error || 'Clear failed');
+    outageState[upsName] = { latest: resp.latest || null, events: Array.isArray(resp.events) ? resp.events : [] };
+    renderOutages(upsName);
+  } catch (err) {
+    showError('Outage clear failed: ' + err.message);
+  }
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -520,7 +721,14 @@ function renderTabs(arr) {
     const btn = document.createElement('button');
     btn.className = `ups-tab${i === activeUPSIdx ? ' active' : ''}`;
     btn.textContent = ups._upsName || `UPS ${i + 1}`;
-    btn.onclick = () => { activeUPSIdx = i; renderTabs(allUPSData); renderUPS(allUPSData[i]); updateCharts(allUPSData[i]._upsName); };
+    btn.onclick = () => {
+      activeUPSIdx = i;
+      renderTabs(allUPSData);
+      renderUPS(allUPSData[i]);
+      updateCharts(allUPSData[i]._upsName);
+      renderOutages(allUPSData[i]._upsName);
+      fetchOutages(allUPSData[i]._upsName);
+    };
     el.appendChild(btn);
   });
 }
@@ -549,7 +757,11 @@ async function fetchData() {
     const ups = allUPSData[activeUPSIdx];
     if (ups) {
       if (ups._error) showError(`NUT error for ${ups._upsName}: ${ups._error}`);
-      else { renderUPS(ups); updateCharts(ups._upsName); }
+      else {
+        renderUPS(ups);
+        updateCharts(ups._upsName);
+        fetchOutages(ups._upsName);
+      }
     }
     document.getElementById('last-updated').textContent =
       `Last updated: ${new Date().toLocaleTimeString()} — NUT at ${resp.host}:${resp.port}`;
@@ -626,25 +838,27 @@ async function shareOrDownload(filename, csvContent) {
 const EXPORT_BTN_LABEL = isMobileShareSupported() ? '📤 Share / Save' : '⬇️ Download CSV';
 
 /**
- * Export either '24h' or '30d' data and invoke the share/download flow.
- * @param {'24h'|'30d'} period
+ * Export either telemetry or outage data and invoke the share/download flow.
+ * @param {'24h'|'30d'|'outages'} period
  */
 async function exportAndShare(period) {
-  const btnId = period === '24h' ? 'share-24h-btn' : 'share-30d-btn';
+  const btnId = period === '24h' ? 'share-24h-btn' : period === '30d' ? 'share-30d-btn' : 'share-outages-btn';
   const btn   = document.getElementById(btnId);
   btn.disabled = true;
   btn.innerHTML = '⏳ Preparing…';
 
   try {
     const upsName  = allUPSData[activeUPSIdx]?._upsName;
-    const endpoint = period === '24h' ? '/export' : '/export-30d';
+    const endpoint = period === '24h' ? '/export' : period === '30d' ? '/export-30d' : '/outages/export';
     const resp     = await apiRequest(endpoint, { upsName });
     if (!resp.success) throw new Error(resp.error || 'Export failed');
     await shareOrDownload(resp.filename, resp.csv);
   } catch (err) {
     showError('Export failed: ' + err.message);
   } finally {
-    btn.disabled = false;
+    btn.disabled = period === 'outages'
+      ? !(outageState[allUPSData[activeUPSIdx]?._upsName]?.events || []).length
+      : false;
     btn.innerHTML = EXPORT_BTN_LABEL;
   }
 }
@@ -653,6 +867,7 @@ async function exportAndShare(period) {
 function initExportButtons() {
   document.getElementById('share-24h-btn').innerHTML = EXPORT_BTN_LABEL;
   document.getElementById('share-30d-btn').innerHTML = EXPORT_BTN_LABEL;
+  document.getElementById('share-outages-btn').innerHTML = EXPORT_BTN_LABEL;
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
