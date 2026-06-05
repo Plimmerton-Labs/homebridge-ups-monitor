@@ -39,6 +39,20 @@ jobs:
       - name: Stamp package version for pack
         run: npm version "${{ steps.pkg.outputs.version }}" --no-git-tag-version --allow-same-version
 
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk '
+            /^## / {
+              if (found) exit
+              found = 1
+            }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG section found for this release." > release-notes.md
+          fi
+
       - name: Pack
         run: npm pack
 
@@ -48,7 +62,7 @@ jobs:
           tag_name: v${{ steps.pkg.outputs.version }}
           name: v${{ steps.pkg.outputs.version }}
           files: homebridge-ups-monitor-*.tgz
-          generate_release_notes: true
+          body_path: release-notes.md
           prerelease: true
           make_latest: false
 
