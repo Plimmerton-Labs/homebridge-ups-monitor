@@ -412,6 +412,35 @@ describe('handleOutages', () => {
 
     fs.rmSync(dir, { recursive: true });
   });
+
+  test('exports outage history as CSV', async () => {
+    const dir = tmpDir();
+    const ctx = makeServerCtx(dir, 'ups');
+    writeOutageLog(dir, 'ups', [{
+      id: '2026-06-05T01:00:00.000Z',
+      upsName: 'ups',
+      start: '2026-06-05T01:00:00.000Z',
+      end: '2026-06-05T01:05:00.000Z',
+      durationSec: 300,
+      ongoing: false,
+      acknowledged: true,
+      acknowledgedAt: '2026-06-05T01:06:00.000Z',
+      startBattery: 90,
+      endBattery: 84,
+      lowestBattery: 84,
+      lowBattery: false,
+    }]);
+
+    const resp = await ctx.handleOutagesExport({ upsName: 'ups' });
+
+    expect(resp.success).toBe(true);
+    expect(resp.upsName).toBe('ups');
+    expect(resp.filename).toMatch(/^ups-ups-outages-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(resp.csv).toContain('ups_name,start,end,duration_sec');
+    expect(resp.csv).toContain('ups,2026-06-05T01:00:00.000Z,2026-06-05T01:05:00.000Z,300,false,true');
+
+    fs.rmSync(dir, { recursive: true });
+  });
 });
 
 // ── handleExport30d ───────────────────────────────────────────────────────────

@@ -133,6 +133,7 @@ You'll see:
 - Live metric cards: input voltage, output voltage, battery %, load %, runtime, battery voltage, and latest outage
 - Outage timeline with start/end times, duration, battery percentages, acknowledgement, and clear controls
 - Voltage and battery/load history charts with selectable **1h / 6h / 12h / 24h** ranges
+- CSV export for **Last 24 Hours**, **Last 30 Days**, and **Outage Timeline** data
 - Auto-refresh every 15 seconds with a countdown indicator
 
 History is persisted server-side in a ring buffer (about 24 hours at the default 30s poll interval), so it survives page refreshes and Homebridge restarts. Outage events are persisted separately as JSON. Data files (history JSON, outage JSON, and daily CSV logs) live in a dedicated `homebridge-ups-monitor/` subfolder of your Homebridge storage directory.

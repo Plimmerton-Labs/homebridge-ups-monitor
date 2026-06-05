@@ -19,6 +19,14 @@ function writeLog(dir, name, content) {
   fs.writeFileSync(path.join(dir, name), content, 'utf8');
 }
 
+function writeOutageLog(dir, upsName, events) {
+  fs.writeFileSync(
+    path.join(dir, `ups-outages-${upsName}.json`),
+    JSON.stringify({ v: 1, events }),
+    'utf8',
+  );
+}
+
 describe('telemetryStore.readHistory', () => {
   test('returns ring-buffer points oldest -> newest', () => {
     const dir = tmpDir();
@@ -74,6 +82,82 @@ describe('telemetryStore.build30dCsv', () => {
     expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
     expect(lines).toContain('2024-01-01T00:00:00.000Z,230,228,,10,');
     expect(lines).toContain('2024-01-02T00:00:00.000Z,229,227,95,12,18.50');
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('telemetryStore.buildOutageCsv', () => {
+  test('header-only CSV when no outages exist', () => {
+    const dir = tmpDir();
+    const { filename, csv } = store.buildOutageCsv(dir, 'ups');
+    expect(csv.trim()).toBe('ups_name,start,end,duration_sec,ongoing,acknowledged,acknowledged_at,start_battery_pct,end_battery_pct,lowest_battery_pct,low_battery');
+    expect(filename).toMatch(/^ups-ups-outages-\d{4}-\d{2}-\d{2}\.csv$/);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  test('exports completed, acknowledged, and ongoing outage events newest first', () => {
+    const dir = tmpDir();
+    writeOutageLog(dir, 'ups', [
+      {
+        id: '2026-06-05T01:00:00.000Z',
+        upsName: 'ups',
+        start: '2026-06-05T01:00:00.000Z',
+        end: '2026-06-05T01:05:30.000Z',
+        durationSec: 330,
+        ongoing: false,
+        acknowledged: true,
+        acknowledgedAt: '2026-06-05T01:06:00.000Z',
+        startBattery: 92,
+        endBattery: 84,
+        lowestBattery: 84,
+        lowBattery: false,
+      },
+      {
+        id: '2026-06-05T02:00:00.000Z',
+        upsName: 'ups',
+        start: '2026-06-05T02:00:00.000Z',
+        end: null,
+        durationSec: null,
+        ongoing: true,
+        acknowledged: false,
+        acknowledgedAt: null,
+        startBattery: 72,
+        endBattery: null,
+        lowestBattery: 68,
+        lowBattery: true,
+      },
+    ]);
+
+    const { csv } = store.buildOutageCsv(dir, 'ups');
+    const lines = csv.trim().split('\n');
+
+    expect(lines[0]).toBe('ups_name,start,end,duration_sec,ongoing,acknowledged,acknowledged_at,start_battery_pct,end_battery_pct,lowest_battery_pct,low_battery');
+    expect(lines[1]).toBe('ups,2026-06-05T02:00:00.000Z,,,true,false,,72,,68,true');
+    expect(lines[2]).toBe('ups,2026-06-05T01:00:00.000Z,2026-06-05T01:05:30.000Z,330,false,true,2026-06-05T01:06:00.000Z,92,84,84,false');
+
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  test('escapes CSV values when needed', () => {
+    const dir = tmpDir();
+    writeOutageLog(dir, 'office,ups', [{
+      id: '2026-06-05T01:00:00.000Z',
+      upsName: 'office,ups',
+      start: '2026-06-05T01:00:00.000Z',
+      end: null,
+      durationSec: null,
+      ongoing: true,
+      acknowledged: false,
+      acknowledgedAt: null,
+      startBattery: null,
+      endBattery: null,
+      lowestBattery: null,
+      lowBattery: false,
+    }]);
+
+    const { csv } = store.buildOutageCsv(dir, 'office,ups');
+    expect(csv.trim().split('\n')[1]).toBe('"office,ups",2026-06-05T01:00:00.000Z,,,true,false,,,,,false');
+
     fs.rmSync(dir, { recursive: true });
   });
 });
