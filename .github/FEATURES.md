@@ -3,6 +3,14 @@
 Features are tackled independently, each on its own `agent/<slug>` branch from `develop`.
 See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
+## Current status
+
+All planned product features are implemented and merged. The remaining external milestone is **Homebridge plugin validation / verification**:
+
+- Features **1-7** and **10-12** are complete.
+- Feature **8** readiness work is complete from this repo's side; the remaining step is the Homebridge validation outcome.
+- Feature **9** dependency hygiene has been triaged with Socket configuration and audit workflow coverage; continue monitoring new dependency alerts as maintenance.
+
 ---
 
 ## Feature 1 — HomeKit Tiles ✅ `agent/homekit-tiles`
@@ -99,7 +107,7 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 ---
 
-## Fixes & Polish — Dashboard 🚧 `agent/standalone-dashboard` (PR #68 → `develop`)
+## Fixes & Polish — Dashboard ✅ `agent/standalone-dashboard` (PR #68 → `develop`)
 
 **Goal:** Make the standalone dashboard the single, reliable way to view UPS data and fix the history charts.
 
@@ -115,7 +123,7 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 ---
 
-## Feature 6 — NUT Control Commands (close the functionality gap) 🎛️ `agent/nut-controls`
+## Feature 6 — NUT Control Commands (close the functionality gap) ✅ `agent/nut-controls`
 
 **Goal:** Add the two UPS *control* capabilities `homebridge-ups` has and we currently lack, so `homebridge-ups-monitor` is a functional superset. Prerequisite for the verification request (Feature 8).
 
@@ -129,13 +137,15 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 - New tile module(s) under `lib/tiles/` following the `setup(accessory, api, upsName, opts) → { update() }` pattern; only register control services when the NUT variable/command is advertised by the device.
 - Tests with a mock NUT server for INSTCMD/SET success, ERR, and unsupported-command paths.
 
+**Delivered:** authenticated NUT command support, optional alarm switch, optional low-battery threshold sync, schema options, and tests for supported/unsupported/denied control paths.
+
 **Risks:** control commands vary by UPS model and require privileged `upsd.users`; must never throw on unsupported hardware.
 
 **Depends on:** existing `nutClient` / tile architecture.
 
 ---
 
-## Feature 7 — Reactive Dashboard Link in Settings UI 🔗 `agent/settings-live-link`
+## Feature 7 — Reactive Dashboard Link in Settings UI ✅ `agent/settings-live-link`
 
 **Goal:** Make the dashboard URL shown in the plugin settings reflect the **actual** `standalonePort` the user types, instead of a static `PORT` / `8581` placeholder (see config-UI screenshot).
 
@@ -149,11 +159,13 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 **Risks:** custom UI replaces the default settings renderer, so the schema form must be re-shown correctly; verify it doesn't reintroduce the blank-panel issue. Test on Homebridge UI ≥ current.
 
+**Delivered:** lightweight settings UI entry point that renders the standard schema form and shows the dashboard link using the configured standalone port, without reintroducing the embedded dashboard.
+
 **Depends on:** none (independent polish).
 
 ---
 
-## Feature 8 — "Verified by Homebridge" Readiness 📋 `agent/verification-readiness`
+## Feature 8 — "Verified by Homebridge" Readiness ✅ / awaiting validation `agent/verification-readiness`
 
 **Goal:** Meet every published [verification requirement](https://github.com/homebridge/plugins#plugin-verification) (criteria last updated 2024-11-02), then submit a verification request issue to `homebridge/plugins`.
 
@@ -168,21 +180,21 @@ See [AGENTS.md](AGENTS.md) for branch / PR conventions.
 
 With Feature 6 adding control parity, we are a genuine superset rather than only a complement.
 
-### Compliance audit & work items
+### Compliance audit & status
 Already compliant: dynamic platform; npm + GitHub repo with issues; config Settings GUI; no analytics; no post-install scripts; files written only under the Homebridge storage dir; GitHub release notes per version (automated changelog + beta tag alignment).
 
-Gaps to close:
-1. **Node 20 / 22 / 24 support** — add `24.x` to the CI matrix, drop EOL `18.x`, bump `engines.node` to `>=20`.
-2. **Error-handling audit** — guarantee no unhandled exceptions: wrap NUT client failures, ring-buffer / file I/O, and the standalone HTTP server (`server.on('error')`, EADDRINUSE). Add tests.
-3. **"Does not start unless configured"** — explicit guard + log when no host/UPS is configured; add a test.
-4. **README / badge polish** — remove the premature `verified-by-homebridge` badge until granted; fix the duplicated "Dashboard" / "Standalone Dashboard" sections; add a short "Relationship to homebridge-ups" section.
-5. **Submit** — open the verification issue on `homebridge/plugins` with the differentiation case above.
+Repo-side readiness work is complete:
+1. **Node 18 / 20 / 22 / 24 support** — CI tests all supported Node versions, including Node 24.
+2. **Error-handling audit** — NUT failures, ring-buffer/file I/O, migrations, and standalone server errors degrade gracefully with tests.
+3. **Configuration/startup behaviour** — standalone dashboard starts only when configured with a valid port; invalid ports log and skip startup.
+4. **README / badge polish** — README positions the plugin clearly, avoids a premature verification badge, and documents the relationship to `homebridge-ups`.
+5. **Validation** — plugin validation has been submitted; awaiting Homebridge review/outcome.
 
 **Depends on:** Feature 6 (control parity strengthens the verification case).
 
 ---
 
-## Feature 9 — Dependency Hygiene / Socket.dev Alert Triage 🧹 `agent/dependency-hygiene` (backlog)
+## Feature 9 — Dependency Hygiene / Socket.dev Alert Triage ✅ `agent/dependency-hygiene`
 
 **Goal:** Resolve or formally triage the Socket.dev dependency alerts so the published package presents a clean supply-chain profile.
 
@@ -197,11 +209,13 @@ Gaps to close:
 
 **Outcome:** a clean (or fully-triaged) Socket profile and a smaller dependency surface in the shipped package — supports the verification effort (Feature 8) and user trust.
 
+**Delivered:** Socket configuration limits PR alerts to dependency manifest changes and documents accepted alert handling; dependency audit workflow remains in CI. Continue treating new alerts as maintenance.
+
 **Depends on:** none (independent hygiene); coordinate with the changelog tooling added for release notes.
 
 ---
 
-## Feature 10 — Tidy Data File Storage 🗂️ `agent/data-subdir`
+## Feature 10 — Tidy Data File Storage ✅ `agent/data-subdir`
 
 **Goal:** Stop scattering data files across the Homebridge storage root. Keep them, but inside a dedicated subdirectory of the storage path.
 
@@ -216,6 +230,8 @@ Gaps to close:
 **Tests:** path-resolution + migration unit tests (mock storage dir with pre-existing root files → assert they move into the subdir and are still read).
 
 **Outcome:** a clean storage root and a self-contained data folder — easier to back up, inspect, and reason about; supports the verification/tidiness goals.
+
+**Delivered:** plugin data now resolves under `<storage>/homebridge-ups-monitor/`, with best-effort migration from legacy root and previous storage locations.
 
 **Depends on:** none.
 
