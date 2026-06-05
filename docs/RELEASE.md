@@ -55,6 +55,16 @@ Beta builds are published as `X.Y.Z-beta.<commit-count>`, where the suffix is
 derived from `git rev-list --count HEAD` so the npm version matches the GitHub
 pre-release tag.
 
+## Release notes and changelog
+
+`CHANGELOG.md` is the source of truth for release notes. The patch/minor version
+bump workflows regenerate it from conventional commits before opening the
+version-bump PR.
+
+`beta.yml` and `release.yml` then use the top `CHANGELOG.md` section as the
+GitHub release body. They do not use GitHub's auto-generated release notes,
+because those can include older compare ranges and automated version-bump noise.
+
 ## Resolving a `develop → main` version conflict (if it ever recurs)
 
 1. Merge `main` into `develop` via an `agent/*` PR, resolving `package.json` to
