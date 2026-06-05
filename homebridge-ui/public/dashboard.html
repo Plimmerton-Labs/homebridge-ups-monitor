@@ -283,6 +283,7 @@
   <div class="outage-header">
     <h2>Outage Timeline</h2>
     <div class="outage-actions">
+      <button class="outage-btn" id="outage-export-btn" onclick="exportAndShare('outages')" disabled>Export CSV</button>
       <button class="outage-btn" id="outage-ack-btn" onclick="acknowledgeLatestOutage()" disabled>Acknowledge</button>
       <button class="outage-btn" id="outage-clear-btn" onclick="clearOutageTimeline()" disabled>Clear</button>
     </div>
@@ -327,6 +328,14 @@
       <div class="share-card-title">Last 30 Days</div>
       <div class="share-card-desc">All daily logs aggregated into a single CSV — one file covering up to 30 days of voltage, load, and timestamp data.</div>
       <button class="share-btn" id="share-30d-btn" onclick="exportAndShare('30d')">
+        📤 Share / Save
+      </button>
+    </div>
+
+    <div class="share-card">
+      <div class="share-card-title">Outage Timeline</div>
+      <div class="share-card-desc">Power outage events with start/end times, duration, acknowledgement, and battery impact. Kept separate from telemetry exports.</div>
+      <button class="share-btn" id="share-outages-btn" onclick="exportAndShare('outages')" disabled>
         📤 Share / Save
       </button>
     </div>
@@ -443,6 +452,8 @@ function renderOutages(upsName) {
   const list = document.getElementById('outage-list');
   const ackBtn = document.getElementById('outage-ack-btn');
   const clearBtn = document.getElementById('outage-clear-btn');
+  const timelineExportBtn = document.getElementById('outage-export-btn');
+  const exportBtn = document.getElementById('share-outages-btn');
 
   if (!latest) {
     outageValue.textContent = 'None';
@@ -453,6 +464,8 @@ function renderOutages(upsName) {
     list.innerHTML = '';
     ackBtn.disabled = true;
     clearBtn.disabled = true;
+    timelineExportBtn.disabled = true;
+    if (exportBtn) exportBtn.disabled = true;
     return;
   }
 
@@ -469,6 +482,8 @@ function renderOutages(upsName) {
   empty.style.display = events.length ? 'none' : 'block';
   ackBtn.disabled = latest.acknowledged;
   clearBtn.disabled = events.length === 0;
+  timelineExportBtn.disabled = events.length === 0;
+  if (exportBtn) exportBtn.disabled = events.length === 0;
   list.innerHTML = events.map(renderOutageRow).join('');
 }
 
@@ -823,25 +838,27 @@ async function shareOrDownload(filename, csvContent) {
 const EXPORT_BTN_LABEL = isMobileShareSupported() ? '📤 Share / Save' : '⬇️ Download CSV';
 
 /**
- * Export either '24h' or '30d' data and invoke the share/download flow.
- * @param {'24h'|'30d'} period
+ * Export either telemetry or outage data and invoke the share/download flow.
+ * @param {'24h'|'30d'|'outages'} period
  */
 async function exportAndShare(period) {
-  const btnId = period === '24h' ? 'share-24h-btn' : 'share-30d-btn';
+  const btnId = period === '24h' ? 'share-24h-btn' : period === '30d' ? 'share-30d-btn' : 'share-outages-btn';
   const btn   = document.getElementById(btnId);
   btn.disabled = true;
   btn.innerHTML = '⏳ Preparing…';
 
   try {
     const upsName  = allUPSData[activeUPSIdx]?._upsName;
-    const endpoint = period === '24h' ? '/export' : '/export-30d';
+    const endpoint = period === '24h' ? '/export' : period === '30d' ? '/export-30d' : '/outages/export';
     const resp     = await apiRequest(endpoint, { upsName });
     if (!resp.success) throw new Error(resp.error || 'Export failed');
     await shareOrDownload(resp.filename, resp.csv);
   } catch (err) {
     showError('Export failed: ' + err.message);
   } finally {
-    btn.disabled = false;
+    btn.disabled = period === 'outages'
+      ? !(outageState[allUPSData[activeUPSIdx]?._upsName]?.events || []).length
+      : false;
     btn.innerHTML = EXPORT_BTN_LABEL;
   }
 }
@@ -850,6 +867,7 @@ async function exportAndShare(period) {
 function initExportButtons() {
   document.getElementById('share-24h-btn').innerHTML = EXPORT_BTN_LABEL;
   document.getElementById('share-30d-btn').innerHTML = EXPORT_BTN_LABEL;
+  document.getElementById('share-outages-btn').innerHTML = EXPORT_BTN_LABEL;
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────

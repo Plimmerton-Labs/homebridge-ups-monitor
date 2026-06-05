@@ -393,4 +393,37 @@ describe('DashboardServer', () => {
     expect(body.events).toEqual([]);
     expect(fs.existsSync(path.join(storageDir, 'ups-log-testups-2026-06-05.csv'))).toBe(true);
   });
+
+  test('POST /outages/export returns outage timeline CSV', async () => {
+    fs.writeFileSync(
+      path.join(storageDir, 'ups-outages-testups.json'),
+      JSON.stringify({
+        v: 1,
+        events: [{
+          id: '2026-06-05T01:00:00.000Z',
+          upsName: 'testups',
+          start: '2026-06-05T01:00:00.000Z',
+          end: '2026-06-05T01:05:00.000Z',
+          durationSec: 300,
+          ongoing: false,
+          acknowledged: true,
+          acknowledgedAt: '2026-06-05T01:06:00.000Z',
+          startBattery: 90,
+          endBattery: 84,
+          lowestBattery: 84,
+          lowBattery: false,
+        }],
+      }),
+      'utf8'
+    );
+
+    const { status, body } = await post(port, '/outages/export', { upsName: 'testups' });
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.upsName).toBe('testups');
+    expect(body.filename).toMatch(/^ups-testups-outages-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(body.csv).toContain('ups_name,start,end,duration_sec');
+    expect(body.csv).toContain('testups,2026-06-05T01:00:00.000Z,2026-06-05T01:05:00.000Z,300,false,true');
+  });
 });

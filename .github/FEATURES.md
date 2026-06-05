@@ -295,11 +295,18 @@ If the Raspberry Pi or Homebridge server loses power before or during the outage
 
 ---
 
-## Feature 12 — Outage Export 📤 `agent/outage-export`
+## Feature 12 — Outage Export ✅ `agent/outage-export`
 
 **Goal:** Let users export the persisted outage timeline as CSV so power-failure events can be reviewed, shared, or analysed separately from the regular voltage/battery/load telemetry exports.
 
 Keep this as a separate export from **Last 24 Hours** and **Last 30 Days**. Those existing exports are telemetry streams; outage events are sparse event records with different fields, so a dedicated outage export keeps each CSV clean and predictable.
+
+**Delivered:**
+- Shared outage CSV builder emits the dedicated event schema newest-first.
+- Standalone dashboard and Homebridge UI server expose `POST /outages/export`.
+- Dashboard Export & Share section adds an **Outage Timeline** export card using the existing share/download flow.
+- Export action is disabled when no outage events exist.
+- Tests cover CSV generation, endpoint behavior, and Homebridge UI handler behavior.
 
 ### Dashboard experience
 

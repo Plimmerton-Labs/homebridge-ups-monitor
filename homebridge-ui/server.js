@@ -14,6 +14,7 @@
  *   POST /outages           → returns outage timeline events for a UPS
  *   POST /outages/acknowledge → acknowledges the latest outage
  *   POST /outages/clear     → clears outage timeline events for a UPS
+ *   POST /outages/export    → returns outage timeline as CSV
  *   POST /logs              → lists available 30-day daily log files for a UPS
  *   POST /logs/download     → returns the contents of one daily log file as CSV
  */
@@ -37,6 +38,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
     this.onRequest('/outages',         this.handleOutages.bind(this));
     this.onRequest('/outages/acknowledge', this.handleOutagesAcknowledge.bind(this));
     this.onRequest('/outages/clear',   this.handleOutagesClear.bind(this));
+    this.onRequest('/outages/export',  this.handleOutagesExport.bind(this));
     this.onRequest('/logs',            this.handleLogs.bind(this));
     this.onRequest('/logs/download',   this.handleLogsDownload.bind(this));
     this.ready();
@@ -229,6 +231,21 @@ class NUTUiServer extends HomebridgePluginUiServer {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
       return { success: true, upsName, ...telemetryStore.clearOutages(dataDir, upsName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * POST /outages/export
+   * Body: { upsName?: string }
+   *
+   * Returns outage timeline events as CSV for sharing/download.
+   */
+  async handleOutagesExport(body = {}) {
+    try {
+      const { dataDir, upsName } = this._resolveContext(body);
+      return { success: true, upsName, ...telemetryStore.buildOutageCsv(dataDir, upsName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
