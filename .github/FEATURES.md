@@ -292,3 +292,52 @@ If the Raspberry Pi or Homebridge server loses power before or during the outage
 - Do not imply the plugin can record outages while the host running Homebridge is itself offline.
 
 **Depends on:** existing `parseStatusFlags`, storage subdirectory, dashboard API, and standalone dashboard UI.
+
+---
+
+## Feature 12 — Outage Export 📤 `agent/outage-export`
+
+**Goal:** Let users export the persisted outage timeline as CSV so power-failure events can be reviewed, shared, or analysed separately from the regular voltage/battery/load telemetry exports.
+
+Keep this as a separate export from **Last 24 Hours** and **Last 30 Days**. Those existing exports are telemetry streams; outage events are sparse event records with different fields, so a dedicated outage export keeps each CSV clean and predictable.
+
+### Dashboard experience
+
+- Add an **Outage Export** action near the Outage Timeline controls or in the Export & Share section.
+- Use the same share/download flow as the existing CSV exports:
+  - mobile: native share sheet when supported;
+  - desktop/fallback: direct CSV download.
+- Disable or clearly no-op the export action when no outage events exist.
+
+### CSV format
+
+Suggested columns:
+
+| Column | Source |
+|---|---|
+| `ups_name` | event UPS name |
+| `start` | outage start ISO timestamp |
+| `end` | outage end ISO timestamp, blank if ongoing |
+| `duration_sec` | outage duration in seconds, blank if ongoing |
+| `ongoing` | boolean |
+| `acknowledged` | boolean |
+| `acknowledged_at` | acknowledgement timestamp, blank if not acknowledged |
+| `start_battery_pct` | battery charge at outage start, when available |
+| `end_battery_pct` | battery charge at recovery, when available |
+| `lowest_battery_pct` | lowest observed battery charge during outage |
+| `low_battery` | whether low-battery status was observed during outage |
+
+### Server/API
+
+- Add a shared telemetry helper to build outage CSV from `ups-outages-<upsName>.json`.
+- Add matching endpoints in both transports, for example `POST /outages/export`.
+- Return `{ success, upsName, filename, csv }`, matching the existing export endpoint shape.
+
+### Tests
+
+- Unit-test CSV generation with no events, completed events, ongoing events, acknowledged events, and nullable battery fields.
+- Add standalone dashboard server endpoint tests for outage export.
+- Add Homebridge UI server handler tests for outage export.
+- Browser-sanity check that the new export action disables/enables correctly.
+
+**Depends on:** Feature 11 outage timeline persistence and dashboard controls.
