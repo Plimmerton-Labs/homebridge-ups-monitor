@@ -1,3 +1,9 @@
+## [1.12.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.0...v1.12.1) (2026-06-06)
+
+### Bug Fixes
+
+* refresh dashboard history rendering ([b3e881a](https://github.com/GodIsI/homebridge-ups-monitor/commit/b3e881a9bc5dd158a92b7d94ae20e3e03d67841d))
+
 ## [1.12.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.11.8-beta.286...v1.12.0) (2026-06-05)
 
 ### Features
