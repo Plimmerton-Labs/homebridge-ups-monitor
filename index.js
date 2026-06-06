@@ -57,6 +57,37 @@ class NUTDashboardPlatform {
     // Map of UUID → cached platformAccessory (restored by Homebridge on restart)
     this.cachedAccessories = new Map();
 
+    // Parse config into connection/polling/feature settings, then resolve the
+    // data directory (running any one-time history migrations).
+    this._applyConfig(config);
+    this._initStorage();
+
+    // Per-UPS state, keyed by UPS name (one entry each, created in setupPolling):
+    this.ringBuffers = new Map();   // → RingBuffer  (history file)
+    this.dailyLogs   = new Map();   // → DailyLog    (30-day CSV log)
+    this.outageLogs  = new Map();   // → OutageLog   (outage timeline)
+    this._pollTimers = new Map();   // → pending poll timer (stable handle)
+
+    this.log.info(
+      `NUT UPS Monitor starting — server: ${this.host}:${this.port}, ` +
+      `UPS: [${this.upsList.join(', ')}]`
+    );
+
+    // Standalone dashboard server — optional, configured by standalonePort.
+    this._dashboardServer = null;
+    this._maybeStartStandaloneServer(config.standalonePort);
+
+    this.api.on('didFinishLaunching', () => this.initAccessories());
+    this.api.on('shutdown', () => this._shutdown());
+  }
+
+  // ─── Construction helpers ──────────────────────────────────────────────────
+
+  // Parse and validate the platform config into connection, polling, and
+  // feature settings. Both control features write to the UPS, so they default
+  // off; pollInterval is validated up front so a bad value can never produce a
+  // tight poll loop (see _resolvePollSec).
+  _applyConfig(config) {
     // Connection settings
     this.host     = config.host     || '127.0.0.1';
     this.port     = config.port     || 3493;
@@ -66,9 +97,7 @@ class NUTDashboardPlatform {
     // UPS name(s) — typically just ['ups']
     this.upsList  = Array.isArray(config.ups) ? config.ups : [config.ups || 'ups'];
 
-    // Polling interval (seconds). Validated up front so a bad config value can
-    // never produce a tight poll loop: anything missing, non-numeric, or < 1
-    // falls back to the 30 s default.
+    // Polling interval (seconds → ms)
     this.pollSec = this._resolvePollSec(config.pollInterval);
     this.pollMs  = this.pollSec * 1000;
 
@@ -78,8 +107,11 @@ class NUTDashboardPlatform {
     // UPS control features — opt-in (both write to the UPS, so default off)
     this.alarmControl            = config.alarmControl === true;
     this.syncLowBatteryThreshold = config.syncLowBatteryThreshold === true;
+  }
 
-    // Storage path for ring-buffer history files.
+  // Resolve the data directory and migrate any history files left behind by an
+  // older version or a previous storage location, so history survives upgrades.
+  _initStorage() {
     // Prefer the path Homebridge gives us via the API (honours custom -U dirs);
     // fall back to UIX_STORAGE_PATH / ~/.homebridge for older cores or tests.
     this.storagePath = (this.api && this.api.user && typeof this.api.user.storagePath === 'function'
@@ -88,50 +120,30 @@ class NUTDashboardPlatform {
       || process.env.UIX_STORAGE_PATH
       || path.join(os.homedir(), '.homebridge');
 
-    // Keep data files in a dedicated subdirectory of the storage path
-    // (tidier than the storage root). Migrate any legacy root files once.
+    // Keep data files in a dedicated subdirectory of the storage path (tidier
+    // than the storage root). Migrate any legacy files into it once.
     this.dataDir = resolveDataDir(this.storagePath);
-    // Migrate files left in the storage root by older versions...
+    // Files left in the storage root by older versions...
     migrateLegacyFiles(this.storagePath, this.dataDir, this.log);
-    // ...and reclaim any left behind in a previous storage location (e.g. the
-    // old ~/.homebridge / UIX_STORAGE_PATH fallback) so history survives upgrades.
+    // ...and any left behind in a previous storage location (e.g. the old
+    // ~/.homebridge / UIX_STORAGE_PATH fallback).
     migrateLegacyLocations(this.dataDir, this.storagePath, this.log);
+  }
 
-    // Map of upsName → RingBuffer instance (one file per UPS)
-    this.ringBuffers = new Map();
+  // Start the optional standalone dashboard server when standalonePort is set
+  // and valid. Logs and skips on an invalid port rather than throwing.
+  _maybeStartStandaloneServer(standalonePort) {
+    if (standalonePort == null || standalonePort === '') return;
 
-    // Map of upsName → DailyLog instance (30-day CSV log per UPS)
-    this.dailyLogs = new Map();
-
-    // Map of upsName → OutageLog instance (one timeline file per UPS)
-    this.outageLogs = new Map();
-
-    // Map of upsName → pending poll timer (so a self-scheduling loop has a
-    // stable handle; see setupPolling).
-    this._pollTimers = new Map();
-
-    this.log.info(
-      `NUT UPS Monitor starting — server: ${this.host}:${this.port}, ` +
-      `UPS: [${this.upsList.join(', ')}]`
-    );
-
-    // Standalone dashboard server — optional, configured by standalonePort
-    this._dashboardServer = null;
-    const standalonePort = config.standalonePort;
-    if (standalonePort != null && standalonePort !== '') {
-      const portNum = Number(standalonePort);
-      if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
-        this.log.error(
-          `[UPS Dashboard] Invalid standalonePort "${standalonePort}" — must be an integer 1–65535. ` +
-          'Standalone dashboard not started.'
-        );
-      } else {
-        this._startDashboardServer(portNum);
-      }
+    const portNum = Number(standalonePort);
+    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+      this.log.error(
+        `[UPS Dashboard] Invalid standalonePort "${standalonePort}" — must be an integer 1–65535. ` +
+        'Standalone dashboard not started.'
+      );
+      return;
     }
-
-    this.api.on('didFinishLaunching', () => this.initAccessories());
-    this.api.on('shutdown', () => this._shutdown());
+    this._startDashboardServer(portNum);
   }
 
   // Start the optional standalone dashboard web server on the given (validated) port.
@@ -247,20 +259,39 @@ class NUTDashboardPlatform {
   }
 
   // ─── Accessory setup & poll loop ──────────────────────────────────────────
+
+  // Wire up one UPS accessory: accessory info, persistence stores, tiles, the
+  // opt-in control features, and the self-scheduling poll loop.
   setupPolling(accessory, upsName) {
-    // Accessory Information
+    this._setAccessoryInfo(accessory, upsName);
+
+    const stores = this._createStores(upsName);
+    const tiles  = this._createTiles(accessory, upsName);
+
+    // Opt-in control features (alarm switch, threshold sync) — set up
+    // asynchronously after a capability probe; never blocks polling.
+    this._setupControls(accessory, upsName, tiles);
+
+    this._startPollLoop(upsName, tiles, stores);
+  }
+
+  // Populate the HomeKit Accessory Information service.
+  _setAccessoryInfo(accessory, upsName) {
     const { Characteristic, Service } = this.api.hap;
     accessory
       .getService(Service.AccessoryInformation)
       ?.setCharacteristic(Characteristic.Manufacturer, 'NUT / Network UPS Tools')
       .setCharacteristic(Characteristic.Model,         'UPS Monitor')
       .setCharacteristic(Characteristic.SerialNumber,  upsName);
+  }
 
-    // Ring buffer for this UPS — sized to retain ~24 h of history at the
-    // configured poll interval (e.g. 2880 points at 30 s). Bounded so very
-    // fast poll intervals don't produce an oversized backing file.
-    const pollSec  = this.pollSec;
-    const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / pollSec)));
+  // Create and register the three persistence stores for a UPS.
+  // @returns {{ ringBuf: RingBuffer, dailyLog: DailyLog, outageLog: OutageLog }}
+  _createStores(upsName) {
+    // Ring buffer sized to retain ~24 h of history at the configured poll
+    // interval (e.g. 2880 points at 30 s). Bounded so very fast poll intervals
+    // don't produce an oversized backing file.
+    const capacity = Math.min(8640, Math.max(1440, Math.ceil(86400 / this.pollSec)));
     const histFile = path.join(this.dataDir, `ups-history-${upsName}.json`);
     const ringBuf  = new RingBuffer(histFile, capacity);
     this.ringBuffers.set(upsName, ringBuf);
@@ -273,8 +304,12 @@ class NUTDashboardPlatform {
     const outageLog = new OutageLog(this.dataDir, upsName, { log: this.log });
     this.outageLogs.set(upsName, outageLog);
 
-    // Initialise all tiles — each returns an update() function
-    const tiles = [
+    return { ringBuf, dailyLog, outageLog };
+  }
+
+  // Initialise the seven always-on tiles; each returns an update() function.
+  _createTiles(accessory, upsName) {
+    return [
       setupBatteryTile(accessory, this.api, upsName, { lowBatThreshold: this.lowBatThreshold }),
       setupOutletTile(accessory, this.api, upsName),
       setupOnBatteryTile(accessory, this.api, upsName),
@@ -283,11 +318,25 @@ class NUTDashboardPlatform {
       setupOutputVoltageTile(accessory, this.api, upsName),
       setupRuntimeTile(accessory, this.api, upsName),
     ];
+  }
 
-    // Opt-in control features (alarm switch, threshold sync) — set up
-    // asynchronously after a capability probe; never blocks polling.
-    this._setupControls(accessory, upsName, tiles);
+  // Map a raw NUT data object to a compact telemetry point (null for missing).
+  _buildPoint(data) {
+    return {
+      t:       new Date().toISOString(),
+      inV:     data['input.voltage']   ?? null,
+      outV:    data['output.voltage']  ?? null,
+      bat:     data['battery.charge']  ?? null,
+      load:    data['ups.load']        ?? null,
+      runtime: data['battery.runtime'] ?? null,
+    };
+  }
 
+  // Self-scheduling poll loop for one UPS. Each poll catches its own errors and
+  // re-arms the next only after it settles, so a slow NUT query can never
+  // overlap the next poll. The timer is unref'd so it does not hold the process
+  // open, and is tracked per-UPS for a clean shutdown.
+  _startPollLoop(upsName, tiles, stores) {
     const poll = async () => {
       try {
         const data  = await queryNUT(this.host, this.port, upsName, this.username, this.password);
@@ -296,27 +345,11 @@ class NUTDashboardPlatform {
         // Push fresh data into every tile
         tiles.forEach(tile => tile.update(data, flags));
 
-        // Append telemetry point to the persistent ring buffer
-        const point = {
-          t:       new Date().toISOString(),
-          inV:     data['input.voltage']   ?? null,
-          outV:    data['output.voltage']  ?? null,
-          bat:     data['battery.charge']  ?? null,
-          load:    data['ups.load']        ?? null,
-          runtime: data['battery.runtime'] ?? null,
-        };
-        ringBuf.push(point);
-        outageLog.record({ t: point.t, flags, batteryCharge: point.bat });
-
-        // Append voltage, battery %, load %, and runtime to the 30-day daily CSV log
-        dailyLog.append({
-          t:       point.t,
-          inV:     point.inV,
-          outV:    point.outV,
-          bat:     point.bat,
-          load:    point.load,
-          runtime: point.runtime,
-        });
+        // Persist one telemetry point to all three stores
+        const point = this._buildPoint(data);
+        stores.ringBuf.push(point);
+        stores.outageLog.record({ t: point.t, flags, batteryCharge: point.bat });
+        stores.dailyLog.append(point);
 
         this.log.debug(
           `[${upsName}] ${flags.raw} | ` +
@@ -329,10 +362,6 @@ class NUTDashboardPlatform {
       }
     };
 
-    // Self-scheduling loop: re-arm the next poll only after the current one
-    // settles (poll() catches its own errors and never rejects), so a slow NUT
-    // query can never overlap the next poll. The timer is unref'd so it does not
-    // hold the process open, and is tracked per-UPS for a clean shutdown.
     const scheduleNext = () => {
       const timer = setTimeout(tick, this.pollMs);
       if (timer && typeof timer.unref === 'function') timer.unref();
