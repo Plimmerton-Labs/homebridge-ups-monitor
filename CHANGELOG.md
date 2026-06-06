@@ -1,6 +1,6 @@
-## [1.13.1](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.13.0...v1.13.1) (2026-06-06)
+## [1.13.2](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.13.1-beta.304...v1.13.2) (2026-06-06)
 
-## [1.13.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.2-beta.298...v1.13.0) (2026-06-06)
+## [1.13.1-beta.304](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.13.0...v1.13.1-beta.304) (2026-06-06)
 
 ### Bug Fixes
 
