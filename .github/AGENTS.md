@@ -239,6 +239,55 @@ The `if:` condition on both `version-patch.yml` and `version-minor.yml` excludes
 
 ---
 
+## Homebridge Verification — must not regress
+
+This plugin is going through (and must keep passing) the **Verified by Homebridge**
+check tracked at <https://github.com/homebridge/plugins/issues/1068>. That check has
+broken **repeatedly after routine refactors** because nothing in our own CI reproduced
+it — the failure only surfaced externally, after merge. Treat verification as a **hard
+gate**, on the same level as the test suite.
+
+### The reproduction now lives in CI
+
+`test/verification.test.js` reproduces the verifier locally and runs as part of
+`npm test` (and therefore on every PR). It checks the two things that have actually
+regressed:
+
+1. **Static manifest rules** — `config.schema.json` `required` must be an **array**
+   (never a per-field boolean); `homebridge` must stay a **devDependency** (never a
+   runtime `dependency`); no `install`/`preinstall`/`postinstall` hooks; `pluginAlias`
+   must match `PLATFORM_NAME`.
+2. **Minimal-config startup** — the platform is constructed and `didFinishLaunching`
+   fired with the bare config `{ "platform": "NUTDashboard" }` and **no reachable NUT
+   server**, asserting it (a) never throws and (b) writes **nothing** to the storage
+   root. The verifier boots with exactly that config in a throwaway dir and then tears
+   the dir down with a *non-recursive* `rmdir`; if the plugin eagerly creates files on
+   startup, that teardown fails with `ENOTEMPTY` and the check reports
+   "expected startup but failed".
+
+### Rules for agents
+
+- **Any PR that touches `index.js`, `lib/`, `config.schema.json`, `package.json`, or
+  `.github/workflows/` must keep `test/verification.test.js` green.** Run
+  `npm test` (or `npx jest test/verification.test.js`) before opening the PR.
+- **Never make the plugin write data files on startup.** History/CSV/outage files are
+  created lazily, only after the *first successful poll*. Do not move file or directory
+  creation into the constructor, `didFinishLaunching`, or tile setup — doing so
+  re-breaks the verifier's non-recursive cleanup.
+- **Never write outside the Homebridge storage dir.** All persisted data must stay under
+  `<storage>/homebridge-ups-monitor/` (see `lib/storagePaths.js`).
+- **The plugin must start, and degrade gracefully, with only `{ "platform":
+  "NUTDashboard" }`.** Missing/invalid config values must fall back to safe defaults and
+  log — never throw, never crash-loop Homebridge.
+- If you change verification-relevant behaviour deliberately, **update both
+  `test/verification.test.js` and [docs/VERIFICATION.md](../docs/VERIFICATION.md)** in
+  the same PR and explain why in the PR description.
+- If the external check reports something the local test passes, it may be a verifier
+  false positive (the bot invites replies on #1068) — confirm against
+  `test/verification.test.js` before changing plugin behaviour.
+
+---
+
 ## What Agents Must Not Do
 
 - Do not merge to `main` directly.
@@ -248,3 +297,5 @@ The `if:` condition on both `version-patch.yml` and `version-minor.yml` excludes
 - Do not modify `.github/workflows/publish.yml` Node version or OIDC settings without understanding the npm Trusted Publishing requirements (Node 24 + npm 11 minimum).
 - Do not use `accessory.addService()` without first checking `accessory.getService()`.
 - Do not hardcode the Homebridge storage path — always use `this.homebridgeStoragePath || process.env.UIX_STORAGE_PATH || path.join(os.homedir(), '.homebridge')`.
+- Do not make the plugin create files or directories on startup (constructor, `didFinishLaunching`, or tile setup) — data files are written lazily after the first successful poll, which is what keeps the Homebridge verifier (#1068) green.
+- Do not merge a PR touching `index.js`, `lib/`, `config.schema.json`, or `package.json` without `test/verification.test.js` passing.
