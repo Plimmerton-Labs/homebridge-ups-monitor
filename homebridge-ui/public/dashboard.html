@@ -375,6 +375,8 @@ let allUPSData   = [];
 let activeUPSIdx = 0;
 let serverHistory = {};   // upsName → [{t,inV,outV,bat,load,runtime}]
 let outageState   = {};   // upsName → {latest, events}
+let historySyncedAt = {}; // upsName → last successful /history sync in ms
+let historySyncing = {};  // upsName → in-flight /history Promise
 let activeRangeH  = 24;
 let voltageChart, batteryChart;
 let countdownVal, countdownTimer;
@@ -593,6 +595,24 @@ function slicedHistory(upsName) {
   };
 }
 
+function pointTimeMs(point) {
+  const ms = Date.parse(point?.t);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function storedHistoryLabel(points) {
+  if (!points.length) return '0 points stored';
+
+  const times = points.map(pointTimeMs).filter(ms => ms != null).sort((a, b) => a - b);
+  if (times.length >= 2) {
+    const hours = (times[times.length - 1] - times[0]) / 3600000;
+    if (hours >= 1) return `${Math.round(hours * 10) / 10}h stored`;
+    return `${Math.max(1, Math.round(hours * 60))}m stored`;
+  }
+
+  return `${points.length} point${points.length !== 1 ? 's' : ''} stored`;
+}
+
 // ── Charts ─────────────────────────────────────────────────────────────────────
 const OPTS = {
   responsive: true, maintainAspectRatio: false,
@@ -656,10 +676,8 @@ function updateCharts(upsName) {
   batteryChart.data.datasets[1].data = load;
   batteryChart.update();
 
-  const plotted = inV.length;
-  const stored = total >= 60
-    ? `${Math.round(total / 60 * 10) / 10}h stored`
-    : `${total} point${total !== 1 ? 's' : ''} stored`;
+  const plotted = inV.filter(p => p.y != null).length;
+  const stored = storedHistoryLabel(serverHistory[upsName] || []);
   const meta = total ? `${stored} · showing last ${activeRangeH}h · ${plotted} plotted` : 'No history yet — data builds up over time';
   document.getElementById('history-meta').textContent   = meta;
   document.getElementById('history-meta-b').textContent = meta;
@@ -721,10 +739,11 @@ function renderTabs(arr) {
     const btn = document.createElement('button');
     btn.className = `ups-tab${i === activeUPSIdx ? ' active' : ''}`;
     btn.textContent = ups._upsName || `UPS ${i + 1}`;
-    btn.onclick = () => {
+    btn.onclick = async () => {
       activeUPSIdx = i;
       renderTabs(allUPSData);
       renderUPS(allUPSData[i]);
+      await fetchHistory(allUPSData[i]._upsName, { force: true });
       updateCharts(allUPSData[i]._upsName);
       renderOutages(allUPSData[i]._upsName);
       fetchOutages(allUPSData[i]._upsName);
@@ -734,15 +753,29 @@ function renderTabs(arr) {
 }
 
 // ── Server history fetch ───────────────────────────────────────────────────────
-async function fetchHistory(upsName) {
-  try {
-    const resp = await apiRequest('/history', { upsName });
-    if (!resp.success || !Array.isArray(resp.points) || !resp.points.length) return;
-    // Merge: keep server baseline, re-attach any live points that are newer
-    const lastT = resp.points[resp.points.length - 1]?.t || '';
-    const live  = (serverHistory[upsName] || []).filter(p => p.t > lastT);
-    serverHistory[upsName] = [...resp.points, ...live];
-  } catch { /* history unavailable — charts fill in as live data arrives */ }
+async function fetchHistory(upsName, opts = {}) {
+  if (!upsName) return;
+
+  const now = Date.now();
+  const hasHistory = (serverHistory[upsName] || []).length > 0;
+  if (!opts.force && hasHistory && historySyncedAt[upsName] && now - historySyncedAt[upsName] < 60000) return;
+  if (historySyncing[upsName]) return historySyncing[upsName];
+
+  historySyncing[upsName] = (async () => {
+    try {
+      const resp = await apiRequest('/history', { upsName });
+      if (!resp.success || !Array.isArray(resp.points)) return;
+      historySyncedAt[upsName] = Date.now();
+      if (!resp.points.length) return;
+      // Merge: keep server baseline, re-attach any live points that are newer
+      const lastT = resp.points[resp.points.length - 1]?.t || '';
+      const live  = (serverHistory[upsName] || []).filter(p => p.t > lastT);
+      serverHistory[upsName] = [...resp.points, ...live];
+    } catch { /* history unavailable — charts fill in as live data arrives */ }
+    finally { delete historySyncing[upsName]; }
+  })();
+
+  return historySyncing[upsName];
 }
 
 // ── Main data fetch ────────────────────────────────────────────────────────────
@@ -759,6 +792,7 @@ async function fetchData() {
       if (ups._error) showError(`NUT error for ${ups._upsName}: ${ups._error}`);
       else {
         renderUPS(ups);
+        await fetchHistory(ups._upsName);
         updateCharts(ups._upsName);
         fetchOutages(ups._upsName);
       }
@@ -874,14 +908,8 @@ function initExportButtons() {
 (async () => {
   initCharts();
   initExportButtons();
-  // First live fetch so we know the UPS name
+  // First live fetch also pulls server-side history once the UPS name is known.
   await fetchData();
-  // Then load the full server-side history (~24h, depending on poll interval)
-  const upsName = allUPSData[activeUPSIdx]?._upsName;
-  if (upsName) {
-    await fetchHistory(upsName);
-    updateCharts(upsName);
-  }
   startCountdown();
 })();
 </script>
