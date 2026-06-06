@@ -124,19 +124,6 @@ class NUTUiServer extends HomebridgePluginUiServer {
     }
   }
 
-  // ── Named endpoint methods ──────────────────────────────────────────────────
-  // Thin wrappers over _handleTelemetry: they name the public surface and let
-  // the endpoint↔payload wiring live once in telemetryStore.TELEMETRY_ROUTES.
-
-  handleHistory(body)            { return this._handleTelemetry('/history', body); }
-  handleExport(body)             { return this._handleTelemetry('/export', body); }
-  handleExport30d(body)          { return this._handleTelemetry('/export-30d', body); }
-  handleLogs(body)               { return this._handleTelemetry('/logs', body); }
-  handleOutages(body)            { return this._handleTelemetry('/outages', body); }
-  handleOutagesAcknowledge(body) { return this._handleTelemetry('/outages/acknowledge', body); }
-  handleOutagesClear(body)       { return this._handleTelemetry('/outages/clear', body); }
-  handleOutagesExport(body)      { return this._handleTelemetry('/outages/export', body); }
-
   /**
    * POST /logs/download
    * Body: { upsName?: string, filename: string }
