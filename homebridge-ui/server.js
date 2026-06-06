@@ -17,6 +17,12 @@
  *   POST /outages/export    → returns outage timeline as CSV
  *   POST /logs              → lists available 30-day daily log files for a UPS
  *   POST /logs/download     → returns the contents of one daily log file as CSV
+ *
+ * The /history, /export, /export-30d, /logs and /outages* endpoints share a
+ * single handler driven by telemetryStore.TELEMETRY_ROUTES, so this transport
+ * and the standalone server (lib/dashboardServer.js) stay in lockstep. The
+ * /ups-status and /logs/download endpoints have transport-specific behaviour and
+ * are handled directly.
  */
 
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
@@ -31,16 +37,12 @@ const os   = require('os');
 class NUTUiServer extends HomebridgePluginUiServer {
   constructor() {
     super();
-    this.onRequest('/ups-status',     this.handleUpsStatus.bind(this));
-    this.onRequest('/history',         this.handleHistory.bind(this));
-    this.onRequest('/export',          this.handleExport.bind(this));
-    this.onRequest('/export-30d',      this.handleExport30d.bind(this));
-    this.onRequest('/outages',         this.handleOutages.bind(this));
-    this.onRequest('/outages/acknowledge', this.handleOutagesAcknowledge.bind(this));
-    this.onRequest('/outages/clear',   this.handleOutagesClear.bind(this));
-    this.onRequest('/outages/export',  this.handleOutagesExport.bind(this));
-    this.onRequest('/logs',            this.handleLogs.bind(this));
-    this.onRequest('/logs/download',   this.handleLogsDownload.bind(this));
+    this.onRequest('/ups-status',    this.handleUpsStatus.bind(this));
+    this.onRequest('/logs/download', this.handleLogsDownload.bind(this));
+    // Every other telemetry endpoint shares one handler (see telemetryStore.TELEMETRY_ROUTES).
+    for (const route of Object.keys(telemetryStore.TELEMETRY_ROUTES)) {
+      this.onRequest(route, body => this._handleTelemetry(route, body));
+    }
     this.ready();
   }
 
@@ -84,30 +86,12 @@ class NUTUiServer extends HomebridgePluginUiServer {
     }
   }
 
-  /**
-   * POST /history
-   * Body: { upsName?: string }  — defaults to first UPS in config
-   *
-   * Returns the persistent ring-buffer history written by index.js.
-   * No NUT query — pure file read, safe to call frequently.
-   *
-   * Response:
-   *   { success: true,  upsName, points: [{t, inV, outV, bat, load, runtime}] }
-   *   { success: false, error }
-   */
-  async handleHistory(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, points: telemetryStore.readHistory(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-  // ── Shared helper ─────────────────────────────────────────────────────────
+  // ── Shared helpers ──────────────────────────────────────────────────────────
 
   /**
-   * Resolve storagePath and upsName from body, falling back to config.
-   * Returns { storagePath, upsName }.
+   * Resolve storagePath, dataDir and upsName from the request body, falling back
+   * to the first UPS in config.json when the body omits upsName.
+   * @returns {{ storagePath: string, dataDir: string, upsName: string }}
    */
   _resolveContext(body = {}) {
     const storagePath = this.homebridgeStoragePath
@@ -126,137 +110,39 @@ class NUTUiServer extends HomebridgePluginUiServer {
   }
 
   /**
-   * POST /export
-   * Body: { upsName?: string }
-   *
-   * Returns the 24h ring-buffer as a CSV string so the dashboard can
-   * trigger a browser download.
-   *
-   * Response:
-   *   { success: true,  upsName, filename, csv }
-   *   { success: false, error }
-   *
-   * CSV columns: timestamp, input_voltage, output_voltage, battery_pct, load_pct, runtime_min
+   * Generic handler for the telemetry endpoints in telemetryStore.TELEMETRY_ROUTES
+   * (/history, /export, /export-30d, /logs, /outages*). Resolves context and
+   * merges the route's payload into the success envelope.
    */
-  async handleExport(body = {}) {
+  _handleTelemetry(route, body = {}) {
     try {
       const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.buildHistoryCsv(dataDir, upsName) };
+      const payload = telemetryStore.TELEMETRY_ROUTES[route](telemetryStore, dataDir, upsName);
+      return { success: true, upsName, ...payload };
     } catch (err) {
       return { success: false, error: err.message };
     }
   }
 
-  /**
-   * POST /export-30d
-   * Body: { upsName?: string }
-   *
-   * Aggregates all available daily log files for the UPS into a single CSV.
-   * Files are sorted oldest → newest so the output is chronological.
-   * Duplicate header rows are stripped — only one header appears at the top.
-   *
-   * Response:
-   *   { success: true,  upsName, filename, csv }
-   *   { success: false, error }
-   *
-   * CSV columns: timestamp, input_voltage, output_voltage, battery_pct, load_pct, runtime_min
-   * (older 4-column daily logs are remapped, leaving battery_pct/runtime_min blank)
-   */
-  async handleExport30d(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.build30dCsv(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
+  // ── Named endpoint methods ──────────────────────────────────────────────────
+  // Thin wrappers over _handleTelemetry: they name the public surface and let
+  // the endpoint↔payload wiring live once in telemetryStore.TELEMETRY_ROUTES.
 
-  /**
-   * POST /logs
-   * Body: { upsName?: string }
-   *
-   * Lists the available 30-day daily log files for the given UPS,
-   * newest first.
-   *
-   * Response:
-   *   { success: true, upsName, files: [{ filename, date, sizeBytes }] }
-   *   { success: false, error }
-   */
-  async handleLogs(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, files: telemetryStore.listLogs(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
-   * POST /outages
-   * Body: { upsName?: string }
-   *
-   * Returns latest outage plus timeline events, newest first.
-   */
-  async handleOutages(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.readOutages(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
-   * POST /outages/acknowledge
-   * Body: { upsName?: string }
-   *
-   * Marks the latest outage as acknowledged without deleting history.
-   */
-  async handleOutagesAcknowledge(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.acknowledgeLatestOutage(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
-   * POST /outages/clear
-   * Body: { upsName?: string }
-   *
-   * Clears outage timeline events only; telemetry CSV logs are retained.
-   */
-  async handleOutagesClear(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.clearOutages(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-
-  /**
-   * POST /outages/export
-   * Body: { upsName?: string }
-   *
-   * Returns outage timeline events as CSV for sharing/download.
-   */
-  async handleOutagesExport(body = {}) {
-    try {
-      const { dataDir, upsName } = this._resolveContext(body);
-      return { success: true, upsName, ...telemetryStore.buildOutageCsv(dataDir, upsName) };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
+  handleHistory(body)            { return this._handleTelemetry('/history', body); }
+  handleExport(body)             { return this._handleTelemetry('/export', body); }
+  handleExport30d(body)          { return this._handleTelemetry('/export-30d', body); }
+  handleLogs(body)               { return this._handleTelemetry('/logs', body); }
+  handleOutages(body)            { return this._handleTelemetry('/outages', body); }
+  handleOutagesAcknowledge(body) { return this._handleTelemetry('/outages/acknowledge', body); }
+  handleOutagesClear(body)       { return this._handleTelemetry('/outages/clear', body); }
+  handleOutagesExport(body)      { return this._handleTelemetry('/outages/export', body); }
 
   /**
    * POST /logs/download
    * Body: { upsName?: string, filename: string }
    *
-   * Returns the raw CSV content of one daily log file.
-   * filename is validated to prevent directory traversal.
+   * Returns the raw CSV content of one daily log file. filename is validated by
+   * telemetryStore.readLogFile to prevent directory traversal.
    *
    * Response:
    *   { success: true, filename, csv }
