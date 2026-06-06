@@ -3,13 +3,13 @@
 /**
  * test/server.test.js
  *
- * Unit tests for the three new homebridge-ui/server.js handlers:
- *   handleExport        — POST /export
- *   handleLogs          — POST /logs
- *   handleLogsDownload  — POST /logs/download
+ * Unit tests for homebridge-ui/server.js. The telemetry endpoints (/export,
+ * /logs, /outages*, /export-30d, …) share one handler driven by
+ * telemetryStore.TELEMETRY_ROUTES, so they are exercised through route dispatch
+ * via the request() helper rather than per-endpoint methods. /logs/download and
+ * /ups-status keep their own methods and are called directly.
  *
- * We test the handler methods directly by instantiating a minimal stand-in
- * for NUTUiServer that exposes the same helpers without requiring the
+ * We instantiate a minimal stand-in for NUTUiServer without requiring the
  * @homebridge/plugin-ui-utils runtime.
  */
 
@@ -19,6 +19,7 @@ const os   = require('os');
 
 const RingBuffer = require('../lib/ringBuffer');
 const { resolveDataDir } = require('../lib/storagePaths');
+const telemetryStore     = require('../lib/telemetryStore');
 
 // ── Minimal server stand-in ───────────────────────────────────────────────────
 // Pull the handler methods out of server.js without running the full UI
@@ -29,8 +30,8 @@ let capturedInstance;
 
 jest.mock('@homebridge/plugin-ui-utils', () => ({
   HomebridgePluginUiServer: class {
-    constructor() { capturedInstance = this; }
-    onRequest() {}
+    constructor() { capturedInstance = this; this._routes = {}; }
+    onRequest(route, handler) { this._routes[route] = handler; }
     ready()     {}
   },
 }));
@@ -40,9 +41,6 @@ jest.mock('../lib/nutClient', () => ({ queryNUT: jest.fn() }));
 
 // Now load server.js — the `new NUTUiServer()` at the bottom runs but is safe.
 require('../homebridge-ui/server');
-
-// Grab the prototype so we can call handlers with a controlled `this`.
-const NUTUiServer = capturedInstance.constructor;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,9 +55,21 @@ function makeServerCtx(storagePath, configUpsName = 'ups') {
   };
   fs.writeFileSync(path.join(storagePath, 'config.json'), JSON.stringify(config), 'utf8');
 
-  const ctx = Object.create(NUTUiServer.prototype);
+  // Reuse the real bootstrapped instance (captured at module load) so requests
+  // run through the handlers and routes that server.js actually registered.
+  const ctx = capturedInstance;
   ctx.homebridgeStoragePath = storagePath;
   return ctx;
+}
+
+// Dispatch a telemetry endpoint exactly as the UI runtime would: by invoking the
+// closure server.js registered for that route via onRequest. This exercises the
+// registration loop, the generic _handleTelemetry, and telemetryStore.TELEMETRY_ROUTES
+// as one path.
+function request(ctx, route, body = {}) {
+  const handler = ctx._routes[route];
+  if (!handler) throw new Error(`no route registered for ${route}`);
+  return handler(body);
 }
 
 function makePoint(n) {
@@ -103,13 +113,13 @@ function writeOutageLog(storagePath, upsName, events) {
 
 // ── handleExport ──────────────────────────────────────────────────────────────
 
-describe('handleExport', () => {
+describe('POST /export', () => {
   test('returns success with csv string and filename', async () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'ups');
     populateRingBuffer(dir, 'ups', 3);
 
-    const resp = await ctx.handleExport({ upsName: 'ups' });
+    const resp = await request(ctx, '/export', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('ups');
@@ -124,7 +134,7 @@ describe('handleExport', () => {
     const ctx = makeServerCtx(dir, 'ups');
     populateRingBuffer(dir, 'ups', 2);
 
-    const resp  = await ctx.handleExport({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
 
     expect(lines[0]).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
@@ -137,7 +147,7 @@ describe('handleExport', () => {
     const ctx = makeServerCtx(dir, 'ups');
     populateRingBuffer(dir, 'ups', 4);
 
-    const resp  = await ctx.handleExport({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
 
     // 1 header + 4 data rows
@@ -153,7 +163,7 @@ describe('handleExport', () => {
     const buf = new RingBuffer(histFile, 1440);
     buf.push({ t: new Date().toISOString(), inV: 230, outV: 229, bat: 80, load: 20, runtime: 3600 });
 
-    const resp  = await ctx.handleExport({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
     const cols  = lines[1].split(',');
 
@@ -167,7 +177,7 @@ describe('handleExport', () => {
     const ctx = makeServerCtx(dir, 'ups');
     // No ring buffer file created — buffer will be empty
 
-    const resp  = await ctx.handleExport({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export', { upsName: 'ups' });
     expect(resp.success).toBe(true);
     // Only the header line, no data rows
     expect(resp.csv.trim()).toBe('timestamp,input_voltage,output_voltage,battery_pct,load_pct,runtime_min');
@@ -180,7 +190,7 @@ describe('handleExport', () => {
     const ctx = makeServerCtx(dir, 'myups');
     populateRingBuffer(dir, 'myups', 2);
 
-    const resp = await ctx.handleExport({});
+    const resp = await request(ctx, '/export', {});
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('myups');
 
@@ -190,12 +200,12 @@ describe('handleExport', () => {
 
 // ── handleLogs ────────────────────────────────────────────────────────────────
 
-describe('handleLogs', () => {
+describe('POST /logs', () => {
   test('returns success with empty array when no log files exist', async () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'ups');
 
-    const resp = await ctx.handleLogs({ upsName: 'ups' });
+    const resp = await request(ctx, '/logs', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.files).toEqual([]);
@@ -210,7 +220,7 @@ describe('handleLogs', () => {
     writeDailyLog(dir, 'ups', '2024-06-03');
     writeDailyLog(dir, 'ups', '2024-06-02');
 
-    const resp = await ctx.handleLogs({ upsName: 'ups' });
+    const resp = await request(ctx, '/logs', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.files).toHaveLength(3);
@@ -225,7 +235,7 @@ describe('handleLogs', () => {
     const ctx = makeServerCtx(dir, 'ups');
     writeDailyLog(dir, 'ups', '2024-06-01');
 
-    const resp = await ctx.handleLogs({ upsName: 'ups' });
+    const resp = await request(ctx, '/logs', { upsName: 'ups' });
     const file = resp.files[0];
 
     expect(file.filename).toBe('ups-log-ups-2024-06-01.csv');
@@ -242,7 +252,7 @@ describe('handleLogs', () => {
     writeDailyLog(dir, 'ups',   '2024-06-01');
     writeDailyLog(dir, 'other', '2024-06-01');
 
-    const resp = await ctx.handleLogs({ upsName: 'ups' });
+    const resp = await request(ctx, '/logs', { upsName: 'ups' });
 
     expect(resp.files).toHaveLength(1);
     expect(resp.files[0].filename).toContain('ups-log-ups-');
@@ -328,7 +338,7 @@ describe('handleLogsDownload', () => {
 
 // ── handleOutages ───────────────────────────────────────────────────────────
 
-describe('handleOutages', () => {
+describe('POST /outages', () => {
   test('returns latest outage and timeline events', async () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'ups');
@@ -347,7 +357,7 @@ describe('handleOutages', () => {
       lowBattery: false,
     }]);
 
-    const resp = await ctx.handleOutages({ upsName: 'ups' });
+    const resp = await request(ctx, '/outages', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.latest.durationSec).toBe(300);
@@ -374,7 +384,7 @@ describe('handleOutages', () => {
       lowBattery: false,
     }]);
 
-    const resp = await ctx.handleOutagesAcknowledge({ upsName: 'ups' });
+    const resp = await request(ctx, '/outages/acknowledge', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.acknowledged).toBe(true);
@@ -403,7 +413,7 @@ describe('handleOutages', () => {
       lowBattery: false,
     }]);
 
-    const resp = await ctx.handleOutagesClear({ upsName: 'ups' });
+    const resp = await request(ctx, '/outages/clear', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.cleared).toBe(1);
@@ -431,7 +441,7 @@ describe('handleOutages', () => {
       lowBattery: false,
     }]);
 
-    const resp = await ctx.handleOutagesExport({ upsName: 'ups' });
+    const resp = await request(ctx, '/outages/export', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('ups');
@@ -445,12 +455,12 @@ describe('handleOutages', () => {
 
 // ── handleExport30d ───────────────────────────────────────────────────────────
 
-describe('handleExport30d', () => {
+describe('POST /export-30d', () => {
   test('returns success with header-only csv when no daily logs exist', async () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'ups');
 
-    const resp = await ctx.handleExport30d({ upsName: 'ups' });
+    const resp = await request(ctx, '/export-30d', { upsName: 'ups' });
 
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('ups');
@@ -466,7 +476,7 @@ describe('handleExport30d', () => {
     writeDailyLog(dir, 'ups', '2024-06-01', 3);
     writeDailyLog(dir, 'ups', '2024-06-02', 2);
 
-    const resp  = await ctx.handleExport30d({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export-30d', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
 
     // 1 header + 3 rows from day 1 + 2 rows from day 2
@@ -482,7 +492,7 @@ describe('handleExport30d', () => {
     writeDailyLog(dir, 'ups', '2024-06-02', 2);
     writeDailyLog(dir, 'ups', '2024-06-03', 2);
 
-    const resp  = await ctx.handleExport30d({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export-30d', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
 
     const headers = lines.filter(l => l.startsWith('timestamp,'));
@@ -499,7 +509,7 @@ describe('handleExport30d', () => {
     writeDailyLog(dir, 'ups', '2024-06-01', 1);
     writeDailyLog(dir, 'ups', '2024-06-02', 1);
 
-    const resp  = await ctx.handleExport30d({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export-30d', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n').slice(1); // skip header
 
     expect(lines[0]).toContain('2024-06-01');
@@ -515,7 +525,7 @@ describe('handleExport30d', () => {
     writeDailyLog(dir, 'ups',   '2024-06-01', 2);
     writeDailyLog(dir, 'other', '2024-06-01', 5);
 
-    const resp  = await ctx.handleExport30d({ upsName: 'ups' });
+    const resp  = await request(ctx, '/export-30d', { upsName: 'ups' });
     const lines = resp.csv.trim().split('\n');
 
     // 1 header + 2 rows from 'ups' only
@@ -529,7 +539,7 @@ describe('handleExport30d', () => {
     const ctx = makeServerCtx(dir, 'myups');
     writeDailyLog(dir, 'myups', '2024-06-01', 1);
 
-    const resp = await ctx.handleExport30d({});
+    const resp = await request(ctx, '/export-30d', {});
 
     expect(resp.success).toBe(true);
     expect(resp.upsName).toBe('myups');
@@ -541,10 +551,31 @@ describe('handleExport30d', () => {
     const dir = tmpDir();
     const ctx = makeServerCtx(dir, 'cyberpower');
 
-    const resp = await ctx.handleExport30d({ upsName: 'cyberpower' });
+    const resp = await request(ctx, '/export-30d', { upsName: 'cyberpower' });
 
     expect(resp.filename).toMatch(/^ups-cyberpower-30d-\d{4}-\d{2}-\d{2}\.csv$/);
 
     fs.rmSync(dir, { recursive: true });
+  });
+});
+
+// ── Route registration ────────────────────────────────────────────────────────
+
+describe('route registration', () => {
+  test('registers a handler for every telemetry route', () => {
+    const registered = Object.keys(capturedInstance._routes);
+    for (const route of telemetryStore.TELEMETRY_ROUTES.keys()) {
+      expect(registered).toContain(route);
+    }
+  });
+
+  test('registers the transport-specific endpoints', () => {
+    const registered = Object.keys(capturedInstance._routes);
+    expect(registered).toContain('/ups-status');
+    expect(registered).toContain('/logs/download');
+  });
+
+  test('does not register /logs/download as a shared telemetry route', () => {
+    expect([...telemetryStore.TELEMETRY_ROUTES.keys()]).not.toContain('/logs/download');
   });
 });

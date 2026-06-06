@@ -146,6 +146,18 @@ describe('DashboardServer', () => {
     expect(body.success).toBe(false);
   });
 
+  // Telemetry routes are looked up in a Map, so a request path that names an
+  // inherited Object.prototype member must not dispatch to it (CodeQL: no
+  // unvalidated dynamic method call).
+  test.each(['/hasOwnProperty', '/__proto__', '/constructor', '/toString'])(
+    'POST %s does not dispatch to an inherited member (returns 404)',
+    async (urlPath) => {
+      const { status, body } = await post(port, urlPath);
+      expect(status).toBe(404);
+      expect(body.success).toBe(false);
+    },
+  );
+
   // ── POST /ups-status ──────────────────────────────────────────────────────
 
   test('POST /ups-status returns success with data array', async () => {
