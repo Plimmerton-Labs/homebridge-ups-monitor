@@ -564,7 +564,7 @@ describe('POST /export-30d', () => {
 describe('route registration', () => {
   test('registers a handler for every telemetry route', () => {
     const registered = Object.keys(capturedInstance._routes);
-    for (const route of Object.keys(telemetryStore.TELEMETRY_ROUTES)) {
+    for (const route of telemetryStore.TELEMETRY_ROUTES.keys()) {
       expect(registered).toContain(route);
     }
   });
@@ -576,6 +576,6 @@ describe('route registration', () => {
   });
 
   test('does not register /logs/download as a shared telemetry route', () => {
-    expect(Object.keys(telemetryStore.TELEMETRY_ROUTES)).not.toContain('/logs/download');
+    expect([...telemetryStore.TELEMETRY_ROUTES.keys()]).not.toContain('/logs/download');
   });
 });

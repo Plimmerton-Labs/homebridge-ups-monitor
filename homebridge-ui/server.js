@@ -40,7 +40,7 @@ class NUTUiServer extends HomebridgePluginUiServer {
     this.onRequest('/ups-status',    this.handleUpsStatus.bind(this));
     this.onRequest('/logs/download', this.handleLogsDownload.bind(this));
     // Every other telemetry endpoint shares one handler (see telemetryStore.TELEMETRY_ROUTES).
-    for (const route of Object.keys(telemetryStore.TELEMETRY_ROUTES)) {
+    for (const route of telemetryStore.TELEMETRY_ROUTES.keys()) {
       this.onRequest(route, body => this._handleTelemetry(route, body));
     }
     this.ready();
@@ -116,8 +116,10 @@ class NUTUiServer extends HomebridgePluginUiServer {
    */
   _handleTelemetry(route, body = {}) {
     try {
+      const fn = telemetryStore.TELEMETRY_ROUTES.get(route);
+      if (!fn) throw new Error(`Unknown telemetry endpoint: ${route}`);
       const { dataDir, upsName } = this._resolveContext(body);
-      const payload = telemetryStore.TELEMETRY_ROUTES[route](telemetryStore, dataDir, upsName);
+      const payload = fn(telemetryStore, dataDir, upsName);
       return { success: true, upsName, ...payload };
     } catch (err) {
       return { success: false, error: err.message };
