@@ -42,9 +42,6 @@ jest.mock('../lib/nutClient', () => ({ queryNUT: jest.fn() }));
 // Now load server.js — the `new NUTUiServer()` at the bottom runs but is safe.
 require('../homebridge-ui/server');
 
-// Grab the prototype so we can call handlers with a controlled `this`.
-const NUTUiServer = capturedInstance.constructor;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function tmpDir() {
@@ -58,15 +55,21 @@ function makeServerCtx(storagePath, configUpsName = 'ups') {
   };
   fs.writeFileSync(path.join(storagePath, 'config.json'), JSON.stringify(config), 'utf8');
 
-  const ctx = Object.create(NUTUiServer.prototype);
+  // Reuse the real bootstrapped instance (captured at module load) so requests
+  // run through the handlers and routes that server.js actually registered.
+  const ctx = capturedInstance;
   ctx.homebridgeStoragePath = storagePath;
   return ctx;
 }
 
-// Dispatch a telemetry endpoint the way the registered route does: through the
-// shared _handleTelemetry generic handler driven by telemetryStore.TELEMETRY_ROUTES.
+// Dispatch a telemetry endpoint exactly as the UI runtime would: by invoking the
+// closure server.js registered for that route via onRequest. This exercises the
+// registration loop, the generic _handleTelemetry, and telemetryStore.TELEMETRY_ROUTES
+// as one path.
 function request(ctx, route, body = {}) {
-  return ctx._handleTelemetry(route, body);
+  const handler = ctx._routes[route];
+  if (!handler) throw new Error(`no route registered for ${route}`);
+  return handler(body);
 }
 
 function makePoint(n) {
