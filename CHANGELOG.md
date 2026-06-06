@@ -1,11 +1,11 @@
-## [1.12.2](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.1-beta.292...v1.12.2) (2026-06-06)
+## [1.13.0](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.2-beta.298...v1.13.0) (2026-06-06)
 
 ### Bug Fixes
 
 * harden telemetry route dispatch against unvalidated dynamic method call ([26dc7c8](https://github.com/GodIsI/homebridge-ups-monitor/commit/26dc7c88f71b5191760bfd1f423720ac34e64ff3))
 * refresh dashboard history rendering ([b3e881a](https://github.com/GodIsI/homebridge-ups-monitor/commit/b3e881a9bc5dd158a92b7d94ae20e3e03d67841d))
 
-## [1.12.1-beta.292](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.0...v1.12.1-beta.292) (2026-06-05)
+## [1.12.2-beta.298](https://github.com/GodIsI/homebridge-ups-monitor/compare/v1.12.1-beta.292...v1.12.2-beta.298) (2026-06-05)
 
 ### Features
 
