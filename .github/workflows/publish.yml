@@ -33,6 +33,14 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
+      # Use the newest npm CLI for publishing. Node 24 ships npm 11 (required for
+      # OIDC Trusted Publishing); upgrading to the latest npm keeps OIDC working
+      # AND ensures the package README is attached to the registry manifest so the
+      # npmjs page / Socket render it (the registry 'readme' field was empty —
+      # see Socket "README file is missing").
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 

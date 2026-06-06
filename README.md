@@ -5,6 +5,7 @@
 [![npm](https://img.shields.io/npm/v/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
 [![npm](https://img.shields.io/npm/dt/homebridge-ups-monitor?style=flat-square)](https://www.npmjs.com/package/homebridge-ups-monitor)
 [![CI](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/GodIsI/homebridge-ups-monitor/actions/workflows/ci.yml)
+[![Socket Badge](https://socket.dev/api/badge/npm/package/homebridge-ups-monitor)](https://socket.dev/npm/package/homebridge-ups-monitor)
 
 A Homebridge platform plugin that monitors your **UPS (Uninterruptible Power Supply)** via [NUT (Network UPS Tools)](https://networkupstools.org/), exposing it as a native HomeKit accessory and providing a **standalone web dashboard** you can open from any browser on your network.
 
