@@ -1,27 +1,37 @@
 # Agent Conventions — homebridge-ups-monitor
 
-This file is the authoritative guide for AI agents (GitHub Copilot, Claude, etc.) working on this repository. Read it before touching any code.
+This file is the authoritative guide for AI agents (GitHub Copilot, Claude, Codex, etc.) working on this repository. Read it before touching any code.
 
 ---
 
 ## Session Setup (run at the start of every session)
 
-The sandbox has no GitHub credentials by default. A fine-grained PAT scoped to this repo is stored in `.git/config` (never committed). Run these two commands before any `git push`:
+Follow the [Plimmerton Labs organisation-wide session start checklist](https://github.com/Plimmerton-Labs/engineering-playbook/blob/develop/AGENTS.md#session-start-checklist) first — pull latest `develop`, check open PRs, check existing branches.
 
-```bash
-TOKEN=$(git config --local cowork.token)
-git remote set-url origin https://oauth2:${TOKEN}@github.com/GodIsI/homebridge-ups-monitor.git
+Then authenticate for GitHub API and git operations using the **GitHub App token helper** from the engineering playbook. The private key lives in the `engineering-playbook` repo (never committed here).
+
+```sh
+# From the engineering-playbook directory (checked out alongside this repo):
+export GITHUB_APP_ID="4141859"
+export GITHUB_APP_INSTALLATION_ID="142521991"
+export GITHUB_APP_PRIVATE_KEY_PATH="../engineering-playbook/secrets/name-plimmerton-labs-ai-agents.2026-06-25.private-key.pem"
+export GH_TOKEN="$(node ../engineering-playbook/scripts/github-app-token.mjs)"
 ```
 
-Verify it works with `git ls-remote --heads origin`. If `cowork.token` is missing, ask the user to re-add it:
-```bash
-git config --local cowork.token "ghp_..."
+Set the remote URL so git push uses the token:
+
+```sh
+git remote set-url origin "https://oauth2:${GH_TOKEN}@github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
 ```
 
-**Token permissions** (fine-grained, repo-scoped only):
-- Contents, Actions, Issues, Pull requests, Workflows — Read and write
-- Metadata — Read-only (required)
-- Branch protection on `develop` and `main` still fully enforced — this token has no bypass actor status
+Verify with `git ls-remote --heads origin`.
+
+When creating commits via the GitHub API, use the bot committer identity (exported as `BOT_COMMITTER` from `scripts/github-app-token.mjs` in the engineering playbook):
+
+```text
+name:  Plimmerton Labs AI Agents
+email: 296834291+plimmerton-labs-ai-agents[bot]@users.noreply.github.com
+```
 
 ---
 
@@ -29,7 +39,7 @@ git config --local cowork.token "ghp_..."
 
 Reusable AI skills live in the `skills/` git submodule (source: <https://github.com/davidamitchell/Skills>). Each subdirectory holds one `SKILL.md` prompt file covering a research, writing, or engineering workflow.
 
-They are **not** pulled by a plain `git clone`. Initialize them once after cloning:
+They are **not** pulled by a plain `git clone`. Initialise them once after cloning:
 
 ```bash
 git submodule update --init --recursive
@@ -56,12 +66,12 @@ The submodule is pinned to a specific commit. Update it deliberately with `git s
 
 ### Branch protection (enforced on GitHub)
 
-Both `main` and `develop` have branch protection enabled — **direct pushes are blocked for everyone**, including GitHub Actions (GitHub's Rulesets do not support adding `github-actions[bot]` as a bypass actor on personal repositories).
+Both `main` and `develop` have branch protection enabled — **direct pushes are blocked for everyone**.
 
 **`main`**
 - Requires a PR (from `develop` only)
 - Requires all CI checks to pass (`Test (Node 18.x / 20.x / 22.x)`)
-- Requires Code Owner review (`@GodIsI`)
+- Requires Code Owner review (configured in repository branch protection settings)
 
 **`develop`**
 - Requires a PR (from `feature/*`, `agent/*`, or `chore/*` branches)
@@ -93,14 +103,12 @@ git fetch origin
 git status                         # must be clean
 git log --oneline origin/develop -5
 git checkout -b agent/<slug> origin/develop
-git push -u origin agent/<slug>    # ← REQUIRED: sets upstream to the agent branch,
-                                   #   not to develop. Without this, git push goes
-                                   #   straight to develop, bypassing the PR process.
+git push -u origin agent/<slug>    # sets upstream to the agent branch, not develop
 ```
 
-Replace `<slug>` with a short, kebab-case description of the work (e.g., `agent/homekit-tiles`, `agent/log-export`).
+Replace `<slug>` with a short, kebab-case description of the work.
 
-**Never skip the `git push -u origin agent/<slug>` step.** It must happen before any commits are made so the remote tracking branch is correct from the start.
+**Never skip `git push -u origin agent/<slug>` before committing.** Without it, git push defaults to develop, bypassing the PR process.
 
 ---
 
@@ -208,83 +216,47 @@ This project uses **MAJOR.MINOR.PATCH** semantic versioning, bumped automaticall
 
 ### How it works (PR-based, no direct pushes)
 
-Because GitHub Rulesets on personal repositories cannot add `github-actions[bot]` as a bypass actor, all automated version bumps go through PRs with auto-merge enabled. The repo must have **Allow auto-merge** turned on in Settings → General.
-
 1. **Feature PR merged → `develop`**
-   - `version-patch.yml` runs, bumps PATCH (e.g. `1.0.2` → `1.0.3`)
-   - Opens PR: `chore/version-bump-1.0.3` → `develop` with auto-merge enabled
-   - CI passes → PR auto-merges; squash commit message: `chore: bump version to 1.0.3`
-   - That commit triggers `beta.yml` (GitHub pre-release artefact) and `publish.yml` (npm beta publish)
+   - `version-patch.yml` runs, bumps PATCH
+   - Opens `chore/version-bump-X.Y.Z` → `develop` with auto-merge enabled
+   - CI passes → PR auto-merges
+   - Triggers `beta.yml` (GitHub pre-release) and `publish.yml` (npm beta)
 
 2. **`develop` PR merged → `main`** (cutting a release)
-   - `version-minor.yml` runs, bumps MINOR and resets PATCH (e.g. `1.0.3` → `1.1.0`)
-   - Opens PR: `chore/version-bump-1.1.0` → `main` with auto-merge enabled
-   - CI passes → PR auto-merges; squash commit message: `chore: bump version to 1.1.0`
-   - That commit triggers `release.yml` (GitHub stable release artefact) and `publish.yml` (npm latest publish)
-   - `sync-develop.yml` detects the version-bump PR merge and opens:
-     PR `chore/sync-main-1.1.0` → `develop` with auto-merge, carrying `1.1.0` back
-
-### Loop prevention
-
-The `if:` condition on both `version-patch.yml` and `version-minor.yml` excludes PRs whose head branch starts with `chore/version-bump` or `chore/sync-main`, so automated PRs never trigger another bump.
+   - `version-minor.yml` runs, bumps MINOR and resets PATCH
+   - Opens `chore/version-bump-X.Y.Z` → `main` with auto-merge enabled
+   - CI passes → PR auto-merges
+   - Triggers `release.yml` (GitHub stable release) and `publish.yml` (npm latest)
+   - `sync-develop.yml` opens `chore/sync-main-X.Y.Z` → `develop` carrying the version back
 
 ### Rules for agents
 
 - **Do not** touch `"version"` in `package.json`.
 - `beta.yml`, `release.yml`, and `publish.yml` only fire on commits whose message starts with `chore: bump version` — do not use that prefix for anything else.
-- **`publish.yml` is the single source of truth for npm publishing.** All changes to Node version, OIDC config, npm flags, or publish logic must be made in `publish.yml` only — never in `beta.yml` or `release.yml` (those handle GitHub release artefacts only).
-- npm OIDC Trusted Publishing requires **Node 24** (ships npm 11). Do not downgrade to Node 22 or 20 in `publish.yml` — OIDC will silently fail.
-- The npmjs.com Trusted Publisher is configured for workflow `publish.yml`. If you rename or split this workflow, the Trusted Publisher entry must be updated on npmjs.com.
-- If you need to reason about the current version, read it from `package.json`.
+- **`publish.yml` is the single source of truth for npm publishing.** All changes to Node version, OIDC config, or publish logic must be made in `publish.yml` only.
+- npm OIDC Trusted Publishing requires **Node 24** (ships npm 11). Do not downgrade in `publish.yml`.
+- If you rename or split `publish.yml`, the Trusted Publisher entry must be updated on npmjs.com.
 
 ---
 
 ## Homebridge Verification — must not regress
 
-This plugin is going through (and must keep passing) the **Verified by Homebridge**
-check tracked at <https://github.com/homebridge/plugins/issues/1068>. That check has
-broken **repeatedly after routine refactors** because nothing in our own CI reproduced
-it — the failure only surfaced externally, after merge. Treat verification as a **hard
-gate**, on the same level as the test suite.
+This plugin is going through (and must keep passing) the **Verified by Homebridge** check tracked at <https://github.com/homebridge/plugins/issues/1068>. Treat verification as a **hard gate**, on the same level as the test suite.
 
-### The reproduction now lives in CI
+### The reproduction lives in CI
 
-`test/verification.test.js` reproduces the verifier locally and runs as part of
-`npm test` (and therefore on every PR). It checks the two things that have actually
-regressed:
+`test/verification.test.js` reproduces the verifier locally and runs as part of `npm test`. It checks:
 
-1. **Static manifest rules** — `config.schema.json` `required` must be an **array**
-   (never a per-field boolean); `homebridge` must stay a **devDependency** (never a
-   runtime `dependency`); no `install`/`preinstall`/`postinstall` hooks; `pluginAlias`
-   must match `PLATFORM_NAME`.
-2. **Minimal-config startup** — the platform is constructed and `didFinishLaunching`
-   fired with the bare config `{ "platform": "NUTDashboard" }` and **no reachable NUT
-   server**, asserting it (a) never throws and (b) writes **nothing** to the storage
-   root. The verifier boots with exactly that config in a throwaway dir and then tears
-   the dir down with a *non-recursive* `rmdir`; if the plugin eagerly creates files on
-   startup, that teardown fails with `ENOTEMPTY` and the check reports
-   "expected startup but failed".
+1. **Static manifest rules** — `config.schema.json` `required` must be an array; `homebridge` must stay a devDependency; no install hooks; `pluginAlias` must match `PLATFORM_NAME`.
+2. **Minimal-config startup** — the platform starts with `{ "platform": "NUTDashboard" }` and no reachable NUT server, asserting it never throws and writes nothing to the storage root.
 
 ### Rules for agents
 
-- **Any PR that touches `index.js`, `lib/`, `config.schema.json`, `package.json`, or
-  `.github/workflows/` must keep `test/verification.test.js` green.** Run
-  `npm test` (or `npx jest test/verification.test.js`) before opening the PR.
-- **Never make the plugin write data files on startup.** History/CSV/outage files are
-  created lazily, only after the *first successful poll*. Do not move file or directory
-  creation into the constructor, `didFinishLaunching`, or tile setup — doing so
-  re-breaks the verifier's non-recursive cleanup.
-- **Never write outside the Homebridge storage dir.** All persisted data must stay under
-  `<storage>/homebridge-ups-monitor/` (see `lib/storagePaths.js`).
-- **The plugin must start, and degrade gracefully, with only `{ "platform":
-  "NUTDashboard" }`.** Missing/invalid config values must fall back to safe defaults and
-  log — never throw, never crash-loop Homebridge.
-- If you change verification-relevant behaviour deliberately, **update both
-  `test/verification.test.js` and [docs/VERIFICATION.md](../docs/VERIFICATION.md)** in
-  the same PR and explain why in the PR description.
-- If the external check reports something the local test passes, it may be a verifier
-  false positive (the bot invites replies on #1068) — confirm against
-  `test/verification.test.js` before changing plugin behaviour.
+- **Any PR that touches `index.js`, `lib/`, `config.schema.json`, `package.json`, or `.github/workflows/` must keep `test/verification.test.js` green.**
+- **Never make the plugin write data files on startup.** History/CSV/outage files are created lazily, only after the first successful poll.
+- **Never write outside the Homebridge storage dir.**
+- **The plugin must start and degrade gracefully with only `{ "platform": "NUTDashboard" }`.** Missing config must fall back to safe defaults and log — never throw.
+- If you change verification-relevant behaviour, update both `test/verification.test.js` and [docs/VERIFICATION.md](../docs/VERIFICATION.md) in the same PR.
 
 ---
 
@@ -292,10 +264,10 @@ regressed:
 
 - Do not merge to `main` directly.
 - Do not modify `.github/workflows/` without a discussion comment in the PR.
-- Do not manually edit `"version"` in `package.json` — versioning is fully automated (see Versioning section above).
-- Do not add npm production dependencies without justification (plugin size matters).
-- Do not modify `.github/workflows/publish.yml` Node version or OIDC settings without understanding the npm Trusted Publishing requirements (Node 24 + npm 11 minimum).
+- Do not manually edit `"version"` in `package.json`.
+- Do not add npm production dependencies without justification.
+- Do not modify `.github/workflows/publish.yml` Node version or OIDC settings without understanding npm Trusted Publishing requirements (Node 24 + npm 11 minimum).
 - Do not use `accessory.addService()` without first checking `accessory.getService()`.
 - Do not hardcode the Homebridge storage path — always use `this.homebridgeStoragePath || process.env.UIX_STORAGE_PATH || path.join(os.homedir(), '.homebridge')`.
-- Do not make the plugin create files or directories on startup (constructor, `didFinishLaunching`, or tile setup) — data files are written lazily after the first successful poll, which is what keeps the Homebridge verifier (#1068) green.
+- Do not make the plugin create files or directories on startup — data files are written lazily after the first successful poll.
 - Do not merge a PR touching `index.js`, `lib/`, `config.schema.json`, or `package.json` without `test/verification.test.js` passing.
