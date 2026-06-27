@@ -70,12 +70,12 @@ Both `main` and `develop` have branch protection enabled — **direct pushes are
 
 **`main`**
 - Requires a PR (from `develop` only)
-- Requires all CI checks to pass (`Test (Node 18.x / 20.x / 22.x)`)
+- Requires all CI checks to pass (`Test (Node 18.x / 20.x / 22.x / 24.x)`)
 - Requires Code Owner review (configured in repository branch protection settings)
 
 **`develop`**
 - Requires a PR (from `feature/*`, `agent/*`, or `chore/*` branches)
-- Requires all CI checks to pass (`Test (Node 18.x / 20.x / 22.x)`)
+- Requires all CI checks to pass (`Test (Node 18.x / 20.x / 22.x / 24.x)`)
 
 ### Branch naming rules
 
@@ -131,10 +131,14 @@ Replace `<slug>` with a short, kebab-case description of the work.
 
 - PR target is **always `develop`**, never `main`.
 - Title: `feat: <short description>` (or `fix:`, `refactor:`, etc.)
+- Use the pull request template at [pull_request_template.md](pull_request_template.md).
 - Description must include:
-  - What changed and why
-  - How to test it manually (e.g., Homebridge restart + HomeKit check)
-  - Any config.schema.json changes that affect existing users
+  - what changed and why;
+  - relevant playbook principles or operating-model concerns;
+  - assumptions made;
+  - validation performed, including `npm test` where relevant;
+  - risks, limitations, and follow-up work;
+  - any `config.schema.json` changes that affect existing users.
 
 ---
 
