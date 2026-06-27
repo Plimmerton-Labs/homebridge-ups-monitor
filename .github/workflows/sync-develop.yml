@@ -9,6 +9,9 @@ name: Sync Main to Develop
 # package.json version line never diverges and develop -> main promotions don't
 # conflict. Squashing this sync is what previously caused recurring version
 # conflicts. See docs/RELEASE.md.
+#
+# Auth: uses the Plimmerton Labs AI Agents GitHub App (not GITHUB_TOKEN, which
+# cannot trigger downstream workflows on merge).
 
 on:
   pull_request:
@@ -29,17 +32,24 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout develop
         uses: actions/checkout@v7
         with:
           ref: develop
           fetch-depth: 0
-          token: ${{ secrets.PAT_VERSION_BUMP }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "Plimmerton Labs AI Agents"
+          git config user.email "296834291+plimmerton-labs-ai-agents[bot]@users.noreply.github.com"
 
       - name: Read version from main
         id: version
@@ -78,7 +88,7 @@ jobs:
         if: steps.branch.outputs.created == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_URL=$(gh pr create \
             --base develop \
@@ -91,7 +101,7 @@ jobs:
       - name: Enable auto-merge (merge commit, NOT squash)
         if: steps.pr.outputs.number != ''
         env:
-          GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh pr merge "${{ steps.pr.outputs.number }}" \
             --auto --merge --repo ${{ github.repository }}

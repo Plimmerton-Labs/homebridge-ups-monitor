@@ -7,7 +7,7 @@ name: Bump Patch Version
 # Excluded head branches:
 #   chore/version-bump-* — automated patch-bump loop prevention
 #   chore/sync-main-*    — automated minor-version sync from main
-#   main                 — manual main→develop sync (use sync-develop.yml instead)
+#   main                 — manual main->develop sync (use sync-develop.yml instead)
 #
 # Instead of pushing directly to develop (blocked by branch protection),
 # this workflow:
@@ -17,6 +17,9 @@ name: Bump Patch Version
 #
 # The "chore: bump version to X.X.X" squash-commit that lands on develop
 # then triggers beta.yml, which builds the pre-release artifact.
+#
+# Auth: uses the Plimmerton Labs AI Agents GitHub App (not GITHUB_TOKEN, which
+# cannot trigger downstream workflows on merge).
 
 on:
   pull_request:
@@ -39,17 +42,24 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout develop
         uses: actions/checkout@v7
         with:
           ref: develop
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "Plimmerton Labs AI Agents"
+          git config user.email "296834291+plimmerton-labs-ai-agents[bot]@users.noreply.github.com"
 
       - name: Bump PATCH in package.json
         id: bump
@@ -71,7 +81,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.PAT_VERSION_BUMP }}
+          token: ${{ steps.app-token.outputs.token }}
           commit-message: "chore: bump version to ${{ steps.bump.outputs.new_version }}"
           branch: chore/version-bump-${{ steps.bump.outputs.new_version }}
           base: develop
@@ -84,9 +94,7 @@ jobs:
       - name: Enable auto-merge
         if: steps.cpr.outputs.pull-request-number
         env:
-          # Must use PAT, not GITHUB_TOKEN — merges via GITHUB_TOKEN do not
-          # trigger downstream push-event workflows (e.g. beta.yml).
-          GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh pr merge ${{ steps.cpr.outputs.pull-request-number }} \
             --auto --squash --repo ${{ github.repository }}
