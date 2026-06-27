@@ -1,6 +1,6 @@
 name: Bump Minor Version
 
-# Runs when a PR (typically develop → main) is merged into main,
+# Runs when a PR (typically develop -> main) is merged into main,
 # but NOT when a version-bump or sync-main PR merges (those are automated).
 #
 # Instead of pushing directly to main (blocked by branch protection),
@@ -11,6 +11,9 @@ name: Bump Minor Version
 #
 # After that PR lands on main, sync-develop.yml fires and opens a follow-up
 # PR to carry the new version back into develop.
+#
+# Auth: uses the Plimmerton Labs AI Agents GitHub App (not GITHUB_TOKEN, which
+# cannot trigger downstream workflows on merge).
 
 on:
   pull_request:
@@ -32,17 +35,24 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout main
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "Plimmerton Labs AI Agents"
+          git config user.email "296834291+plimmerton-labs-ai-agents[bot]@users.noreply.github.com"
 
       - name: Bump MINOR in package.json (reset PATCH to 0)
         id: bump
@@ -64,7 +74,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.PAT_VERSION_BUMP }}
+          token: ${{ steps.app-token.outputs.token }}
           commit-message: "chore: bump version to ${{ steps.bump.outputs.new_version }}"
           branch: chore/version-bump-${{ steps.bump.outputs.new_version }}
           base: main
@@ -78,9 +88,7 @@ jobs:
       - name: Enable auto-merge
         if: steps.cpr.outputs.pull-request-number
         env:
-          # Must use PAT, not GITHUB_TOKEN — merges via GITHUB_TOKEN do not
-          # trigger downstream push-event workflows (e.g. release.yml).
-          GH_TOKEN: ${{ secrets.PAT_VERSION_BUMP }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh pr merge ${{ steps.cpr.outputs.pull-request-number }} \
             --auto --squash --repo ${{ github.repository }}
