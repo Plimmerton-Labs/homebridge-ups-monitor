@@ -18,17 +18,17 @@
     "changelog": "npx --yes conventional-changelog-cli@5 -p conventionalcommits -r 0 -o CHANGELOG.md"
   },
   "author": {
-    "name": "GodIsI",
-    "url": "https://github.com/GodIsI"
+    "name": "Ben Whiting",
+    "url": "https://github.com/Plimmerton-Labs"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GodIsI/homebridge-ups-monitor.git"
+    "url": "https://github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
   },
-  "homepage": "https://github.com/GodIsI/homebridge-ups-monitor#readme",
+  "homepage": "https://github.com/Plimmerton-Labs/homebridge-ups-monitor#readme",
   "bugs": {
-    "url": "https://github.com/GodIsI/homebridge-ups-monitor/issues"
+    "url": "https://github.com/Plimmerton-Labs/homebridge-ups-monitor/issues"
   },
   "keywords": [
     "homebridge-plugin",
