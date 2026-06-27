@@ -1,16 +1,15 @@
-# Agent Instructions
+# AI Contributor Instructions
 
-This repository keeps its detailed agent guidance in [.github/AGENTS.md](.github/AGENTS.md).
+This repository is part of Plimmerton Labs. Before making any changes, read the organisation-wide AI contributor instructions:
 
-Before changing code, opening pull requests, pushing branches, or editing release/workflow
-files, read and follow that file. It is the authoritative project guide for:
+> **[Plimmerton Labs Engineering Playbook — AGENTS.md](https://github.com/Plimmerton-Labs/engineering-playbook/blob/develop/AGENTS.md)**
 
-- branch naming and PR targets;
-- versioning and release automation;
-- test and commit expectations;
-- Homebridge/NUT implementation conventions;
-- workflow, publishing, and dependency rules agents must not violate.
+That document covers: session start checklist, GitHub App identity and token helper, branch and PR conventions, committer identity, and shared rules for all agents.
 
-Keep this root file short so Codex discovers it automatically from the repository root,
-while the detailed guidance remains in the existing `.github/AGENTS.md` location used by
-other tooling.
+Then read the project-specific agent guide for this repository:
+
+> **[.github/AGENTS.md](.github/AGENTS.md)**
+
+That document covers: plugin architecture, NUT variables, HomeKit service conventions, versioning automation, Homebridge verification hard-gate rules, and what agents must not do in this repo.
+
+Both documents must be read before touching any code, opening pull requests, or pushing branches.
