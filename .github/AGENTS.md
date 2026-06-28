@@ -15,13 +15,13 @@ Then authenticate for GitHub API and git operations using the **GitHub App token
 export GITHUB_APP_ID="4141859"
 export GITHUB_APP_INSTALLATION_ID="142521991"
 export GITHUB_APP_PRIVATE_KEY_PATH="../engineering-playbook/secrets/name-plimmerton-labs-ai-agents.2026-06-25.private-key.pem"
-export GH_TOKEN="$(node ../engineering-playbook/scripts/github-app-token.mjs)"
+export PLIMMERTON_AI_AGENT_TOKEN="$(node ../engineering-playbook/scripts/github-app-token.mjs)"
 ```
 
 Set the remote URL so git push uses the token:
 
 ```sh
-git remote set-url origin "https://oauth2:${GH_TOKEN}@github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
+git remote set-url origin "https://oauth2:${PLIMMERTON_AI_AGENT_TOKEN}@github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
 ```
 
 Verify with `git ls-remote --heads origin`.

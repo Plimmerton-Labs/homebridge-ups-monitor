@@ -239,4 +239,4 @@ Pull requests and issues are welcome on [GitHub](https://github.com/Plimmerton-L
 
 ## License
 
-MIT © [Ben Whiting](https://github.com/GodIsI) and Plimmerton Labs
+MIT © [Plimmerton Labs](https://github.com/Plimmerton-Labs)
