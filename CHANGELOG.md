@@ -1,6 +1,6 @@
-## [1.16.2](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.16.1-beta.342...v1.16.2) (2026-06-28)
+## [1.16.3](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.16.2-beta.345...v1.16.3) (2026-06-28)
 
-## [1.16.1-beta.342](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.16.0...v1.16.1-beta.342) (2026-06-27)
+## [1.16.2-beta.345](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.16.1-beta.342...v1.16.2-beta.345) (2026-06-27)
 
 ## [1.15.0](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.14.3-beta.320...v1.15.0) (2026-06-27)
 
