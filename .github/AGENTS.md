@@ -15,13 +15,13 @@ Then authenticate for GitHub API and git operations using the **GitHub App token
 export GITHUB_APP_ID="4141859"
 export GITHUB_APP_INSTALLATION_ID="142521991"
 export GITHUB_APP_PRIVATE_KEY_PATH="../engineering-playbook/secrets/name-plimmerton-labs-ai-agents.2026-06-25.private-key.pem"
-export GH_TOKEN="$(node ../engineering-playbook/scripts/github-app-token.mjs)"
+export PLIMMERTON_AI_AGENT_TOKEN="$(node ../engineering-playbook/scripts/github-app-token.mjs)"
 ```
 
 Set the remote URL so git push uses the token:
 
 ```sh
-git remote set-url origin "https://oauth2:${GH_TOKEN}@github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
+git remote set-url origin "https://oauth2:${PLIMMERTON_AI_AGENT_TOKEN}@github.com/Plimmerton-Labs/homebridge-ups-monitor.git"
 ```
 
 Verify with `git ls-remote --heads origin`.
@@ -62,7 +62,7 @@ The submodule is pinned to a specific commit. Update it deliberately with `git s
 | `main` | Stable, production-ready. Only `develop` may open a PR here. Every merge triggers a GitHub Release + tarball. |
 | `develop` | Integration branch. All features and fixes land here first via PR. |
 | `feature/<slug>` | Human-initiated features. Branch from `develop`, PR back to `develop`. |
-| `agent/<slug>` | Agent-generated work. Same rules as `feature/`. |
+| `agent/<agent>/<slug>` | Agent-generated work. Same rules as `feature/`. |
 
 ### Branch protection (enforced on GitHub)
 
@@ -82,7 +82,7 @@ Both `main` and `develop` have branch protection enabled — **direct pushes are
 | Work type | Branch pattern | Example |
 |-----------|---------------|---------|
 | New feature (human) | `feature/<slug>` | `feature/log-export` |
-| Agent-generated work | `agent/<slug>` | `agent/log-export` |
+| Agent-generated work | `agent/<agent>/<slug>` | `agent/claude/log-export` |
 | Bug fix | `fix/<slug>` | `fix/history-endpoint-crash` |
 | Docs / chore | `chore/<slug>` | `chore/update-readme` |
 | Automated version bump | `chore/version-bump-X.Y.Z` | created by `version-patch.yml` / `version-minor.yml` |
@@ -102,13 +102,13 @@ Both `main` and `develop` have branch protection enabled — **direct pushes are
 git fetch origin
 git status                         # must be clean
 git log --oneline origin/develop -5
-git checkout -b agent/<slug> origin/develop
-git push -u origin agent/<slug>    # sets upstream to the agent branch, not develop
+git checkout -b agent/claude/<slug> origin/develop
+git push -u origin agent/claude/<slug>    # sets upstream to the agent branch, not develop
 ```
 
 Replace `<slug>` with a short, kebab-case description of the work.
 
-**Never skip `git push -u origin agent/<slug>` before committing.** Without it, git push defaults to develop, bypassing the PR process.
+**Never skip `git push -u origin agent/claude/<slug>` before committing.** Without it, git push defaults to develop, bypassing the PR process.
 
 ---
 
