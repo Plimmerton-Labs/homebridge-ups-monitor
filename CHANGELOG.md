@@ -1,4 +1,10 @@
-## [1.19.0](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.18.4-beta.408...v1.19.0) (2026-09-02)
+## [1.19.3](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.19.2-beta.415...v1.19.3) (2026-09-20)
+
+### Bug Fixes
+
+* repoint issue-lifecycle-sync at engineering-automation@v1.0.0 ([#257](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/issues/257)) ([76e5fb4](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/commit/76e5fb4fee8f773063c63d4856a843fb272fcd92)), closes [engineering-playbook#152](https://github.com/Plimmerton-Labs/engineering-playbook/issues/152)
+
+## [1.19.2-beta.415](https://github.com/Plimmerton-Labs/homebridge-ups-monitor/compare/v1.19.1-beta.413...v1.19.2-beta.415) (2026-09-02)
 
 ### Bug Fixes
 
